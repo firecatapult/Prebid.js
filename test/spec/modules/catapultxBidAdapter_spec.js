@@ -309,7 +309,7 @@ describe('CatapultX adapter', function () {
   describe('interpreting group id and apiUrl', function () {
     it('should default to default apiUrl', function () {
       let requests = buildRequest([no_apiUrl_has_qxData_bid]);
-      expect(requests[0].url).to.have.string('https://dev-demand.catapultx.com');
+      expect(requests[0].url).to.have.string('https://demand.catapultx.com');
     });
 
     it('should set apiUrl if sent in params', function () {

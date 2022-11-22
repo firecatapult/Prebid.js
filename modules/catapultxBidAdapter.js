@@ -6,7 +6,7 @@ import {registerBidder} from '../src/adapters/bidderFactory.js';
 import {config} from '../src/config.js';
 
 const BIDDER_CODE = 'catapultx';
-const DEFAULT_API_URL = 'https://dev-demand.catapultx.com';
+const DEFAULT_API_URL = 'https://demand.catapultx.com';
 
 export const spec = {
   code: BIDDER_CODE,
