@@ -146,6 +146,9 @@ function buildImp(bidRequest, secure) {
   if (floor) {
     imp.bidfloor = floor;
   }
+  if (bidRequest.ortb2Imp !== undefined && typeof bidRequest.ortb2Imp.ext === 'object') {
+    imp.ext = bidRequest.ortb2Imp.ext;
+  }
   return imp;
 }
 

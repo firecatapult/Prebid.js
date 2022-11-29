@@ -97,6 +97,16 @@ describe('CatapultX adapter', function () {
       adUnitCode: 'adUnitTestCode',
       bidId: 'testBid3',
       bidderRequestId: 'testRequest1',
+      ortb2Imp: {
+        ext: {
+          data: {
+            arr: [1, 2, 3],
+            str: 'test',
+            int: 123,
+            obj: {test: 'test'}
+          }
+        }
+      },
       auctionId: 'eb66abdc-bdb4-4dfd-a5af-9a9ec70dc98a',
       mediaTypes: {
         banner: {
@@ -191,42 +201,91 @@ describe('CatapultX adapter', function () {
     })
   });
 
+  describe('interpreting group id and apiUrl', function () {
+    it('should default to default apiUrl', function () {
+      let requests = buildRequest([no_apiUrl_has_qxData_bid]);
+      expect(requests[0].url).to.have.string('https://demand.catapultx.com');
+    });
+
+    it('should set apiUrl if sent in params', function () {
+      let requests = buildRequest([enriched_overlay_request]);
+      expect(requests[0].url).to.have.string('example.com');
+      expect(requests[0].url.split('/')[0]).to.be.eql('example.com');
+    });
+
+    it('should set groupId from params', function () {
+      let requests = buildRequest([enriched_overlay_request]);
+      expect(requests[0].url).to.have.string('internal');
+      expect(requests[0].url.split('/').pop()).to.be.eql('internal');
+    });
+  });
+
+  describe('ortb imp generation', function () {
+    let ortbImps;
+
+    before(function () {
+      let requests = buildRequest([no_qxdata_has_apiurl_bid, enriched_overlay_request]);
+      ortbImps = requests[0].data.imp;
+    });
+
+    it('should have banner object', function () {
+      expect(ortbImps[0]).to.have.property('banner');
+    });
+
+    it('should have corresponding bidId', function () {
+      expect(ortbImps[0]).to.have.property('id');
+      expect(ortbImps[0].id).to.be.eql('testBid1');
+      expect(ortbImps[1]).to.have.property('id');
+      expect(ortbImps[1].id).to.be.eql('testBid3');
+    });
+
+    it('should have format object', function () {
+      expect(ortbImps[0].banner).to.have.property('format');
+      expect(ortbImps[0].banner.format).to.be.eql([{w: 300, h: 250}]);
+    });
+
+    it('should evaluate and send secure value', function () {
+      expect(ortbImps[0]).to.have.property('secure', 1);
+    });
+
+    it('should properly identify non https and send 0 for secure', function () {
+      let httpRequests = buildRequest([enriched_overlay_request], buildBidderRequest('http://example.com/index.html'));
+      let notSecure = httpRequests[0].data.imp[0];
+      expect(notSecure).to.have.property('secure', 0);
+    });
+
+    it('should have tagid', function () {
+      expect(ortbImps[0]).to.have.property('tagid', 'adUnitTestCode');
+    });
+
+    it('should set bidfloor if configured', function() {
+      let bid = Object.assign({}, enriched_overlay_request);
+      bid.getFloor = function() {
+        return {
+          currency: 'USD',
+          floor: 0.145
+        }
+      };
+      let requests = buildRequest([bid]);
+      expect(requests[0].data.imp[0]).to.have.property('bidfloor', 0.145);
+    });
+
+    it('should not add ext object with no ortb2imp injection', function () {
+      expect(ortbImps[0]).to.not.have.property('ext');
+    });
+
+    it('should map object from ortb2imp injection', function () {
+      expect(ortbImps[1]).to.have.property('ext');
+      expect(ortbImps[1].ext).to.be.eql(enriched_overlay_request.ortb2Imp.ext);
+    });
+  });
+
   describe('monetize request generation', function () {
     let monetizeRequest;
 
     before(function () {
       let requests = buildRequest([no_qxdata_has_apiurl_bid, enriched_overlay_request]);
       monetizeRequest = requests[0].data;
-    });
-
-    it('should have banner object', function () {
-      expect(monetizeRequest.imp[0]).to.have.property('banner');
-    });
-
-    it('should have corresponding bidId', function () {
-      expect(monetizeRequest.imp[0]).to.have.property('id');
-      expect(monetizeRequest.imp[0].id).to.be.eql('testBid1');
-      expect(monetizeRequest.imp[1]).to.have.property('id');
-      expect(monetizeRequest.imp[1].id).to.be.eql('testBid3');
-    });
-
-    it('should have format object', function () {
-      expect(monetizeRequest.imp[0].banner).to.have.property('format');
-      expect(monetizeRequest.imp[0].banner.format).to.be.eql([{w: 300, h: 250}]);
-    });
-
-    it('should evaluate and send secure value', function () {
-      expect(monetizeRequest.imp[0]).to.have.property('secure', 1);
-    });
-
-    it('should properly identify non https and send 0 for secure', function () {
-      let httpRequests = buildRequest([enriched_overlay_request], buildBidderRequest('http://example.com/index.html'));
-      let notSecure = httpRequests[0].data;
-      expect(notSecure.imp[0]).to.have.property('secure', 0);
-    });
-
-    it('should have tagid', function () {
-      expect(monetizeRequest.imp[0]).to.have.property('tagid', 'adUnitTestCode');
     });
 
     it('should have tmax', function () {
@@ -291,37 +350,6 @@ describe('CatapultX adapter', function () {
     it('should set dnt if applicable', function () {
       expect(monetizeRequest).to.have.property('dnt');
       expect(monetizeRequest.dnt).to.be.eql(1);
-    });
-
-    it('should set bidfloor if configured', function() {
-      let bid = Object.assign({}, enriched_overlay_request);
-      bid.getFloor = function() {
-        return {
-          currency: 'USD',
-          floor: 0.145
-        }
-      };
-      let requests = buildRequest([bid]);
-      expect(requests[0].data.imp[0]).to.have.property('bidfloor', 0.145);
-    });
-  });
-
-  describe('interpreting group id and apiUrl', function () {
-    it('should default to default apiUrl', function () {
-      let requests = buildRequest([no_apiUrl_has_qxData_bid]);
-      expect(requests[0].url).to.have.string('https://demand.catapultx.com');
-    });
-
-    it('should set apiUrl if sent in params', function () {
-      let requests = buildRequest([enriched_overlay_request]);
-      expect(requests[0].url).to.have.string('example.com');
-      expect(requests[0].url.split('/')[0]).to.be.eql('example.com');
-    });
-
-    it('should set groupId from params', function () {
-      let requests = buildRequest([enriched_overlay_request]);
-      expect(requests[0].url).to.have.string('internal');
-      expect(requests[0].url.split('/').pop()).to.be.eql('internal');
     });
   });
 
