@@ -101,7 +101,7 @@ export const extractFpid = () => {
  * Gets the URL of Profile Api from which targeting data will be fetched
  * @param {string} config.customerId
  * @param {object} consent query params as dict
- * @param {string} oneplusx first party id (nullable)
+ * @param {string} catapultx first party id (nullable)
  * @returns {string} URL to access 1plusX Profile API
  */
 export const getPapiUrl = (customerId, consent, fpid) => {
@@ -288,11 +288,11 @@ const getBidRequestData = (reqBidsConfigObj, callback, moduleConfig, userConsent
 }
 
 // The RTD submodule object to be exported
-export const onePlusXSubmodule = {
+export const catapultXSubmodule = {
   name: MODULE_NAME,
   init,
   getBidRequestData
 }
 
-// Register the onePlusXSubmodule as submodule of realTimeData
-submodule(REAL_TIME_MODULE, onePlusXSubmodule);
+// Register the catapultXSubmodule as submodule of realTimeData
+submodule(REAL_TIME_MODULE, catapultXSubmodule);
