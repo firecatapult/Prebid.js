@@ -91,6 +91,19 @@ describe('CatapultX adapter', function () {
         }
       }
     },
+    non_enriched_bid_multiple_sizes = {
+      bidder: 'catapultx',
+      params: {groupId: 'internal'},
+      adUnitCode: 'adUnitTestCode',
+      bidId: 'testBid2',
+      bidderRequestId: 'testRequest1',
+      auctionId: 'eb66abdc-bdb4-4dfd-a5af-9a9ec70dc98a',
+      mediaTypes: {
+        banner: {
+          sizes: [[300, 250], [900, 78]]
+        }
+      }
+    },
     enriched_overlay_request = {
       bidder: 'catapultx',
       params: {groupId: 'internal', qxData: sample_qxData, apiUrl: 'example.com'},
@@ -113,6 +126,52 @@ describe('CatapultX adapter', function () {
           sizes: [[300, 250]]
         }
       }
+    },
+    no_seatbid_response = {
+      'id': '26afda50-b43b-49c5-8b27-a25149167283',
+      'seatbid': [],
+      'bidid': 'bidid',
+      'cur': 'USD',
+      'nbr': 0
+    },
+    missing_seatbid_response = {
+      'id': '26afda50-b43b-49c5-8b27-a25149167283',
+      'bidid': 'bidid',
+      'cur': 'USD',
+      'nbr': 0
+    },
+    missing_cur_bid_response = {
+      'id': '26afda50-b43b-49c5-8b27-a25149167283',
+      'seatbid': [
+        {
+          'bid': [
+            {
+              'id': 'id123',
+              'impid': 'testBid3',
+              'price': 2,
+              'adid': '80152',
+              'nurl': 'https://demand.example.com/win?i=id123',
+              'adm': '<!-- cx bidadapter test -->',
+              'adomain': [
+                'example.com'
+              ],
+              'iurl': 'https://demand.example.com/yetfs.png',
+              'cid': '1234',
+              'crid': 'crid123',
+              'cat': [
+                'IAB1',
+                'IAB2',
+                'IAB123'
+              ],
+              'w': 728,
+              'h': 90
+            }
+          ],
+          'seat': '123555'
+        }
+      ],
+      'bidid': 'bidid',
+      'nbr': 0
     },
     bid_response = {
       'id': '26afda50-b43b-49c5-8b27-a25149167283',
@@ -145,7 +204,7 @@ describe('CatapultX adapter', function () {
         }
       ],
       'bidid': 'bidid',
-      'cur': 'USD',
+      'cur': 'testCur',
       'nbr': 0
     }
 
@@ -258,8 +317,24 @@ describe('CatapultX adapter', function () {
       expect(ortbImps[0]).to.have.property('tagid', 'adUnitTestCode');
     });
 
+    it('should default bidfloor 0 if not configured', function() {
+      expect(ortbImps[0]).to.have.property('bidfloor', 0);
+    });
+
     it('should set bidfloor if configured', function() {
       let bid = Object.assign({}, enriched_overlay_request);
+      bid.getFloor = function() {
+        return {
+          currency: 'USD',
+          floor: 0.145
+        }
+      };
+      let requests = buildRequest([bid]);
+      expect(requests[0].data.imp[0]).to.have.property('bidfloor', 0.145);
+    });
+
+    it('should set bidfloor if configured on bid with multiple sizes', function() {
+      let bid = Object.assign({}, non_enriched_bid_multiple_sizes);
       bid.getFloor = function() {
         return {
           currency: 'USD',
@@ -354,6 +429,22 @@ describe('CatapultX adapter', function () {
   });
 
   describe('interprets responses', function () {
+    it('should return empty array for no bid response in seatbid', function () {
+      let resp = spec.interpretResponse({body: no_seatbid_response});
+      expect(resp).to.be.eql([]);
+    });
+
+    it('should return empty array for missing seatbid array', function () {
+      let resp = spec.interpretResponse({body: missing_seatbid_response});
+      expect(resp).to.be.eql([]);
+    });
+
+    it('should default currency to USD when cur is missing from response', function () {
+      let resp = spec.interpretResponse({body: missing_cur_bid_response})[0];
+      expect(resp).to.have.property('currency');
+      expect(resp.currency).to.be.eql('USD');
+    });
+
     it('should interpret banner rtb response', function () {
       let resp = spec.interpretResponse({body: bid_response})[0];
       expect(resp).to.have.property('requestId', 'testBid3');
@@ -362,6 +453,7 @@ describe('CatapultX adapter', function () {
       expect(resp).to.have.property('height', 90);
       expect(resp).to.have.property('creativeId', 'crid123');
       expect(resp).to.have.property('currency');
+      expect(resp.currency).to.be.eql('testCur');
       expect(resp).to.have.property('ttl');
       expect(resp).to.have.property('mediaType', BANNER);
       expect(resp).to.have.property('ad');

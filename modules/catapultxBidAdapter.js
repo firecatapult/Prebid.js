@@ -50,7 +50,7 @@ export const spec = {
    */
   interpretResponse: function (serverResponse) {
     let response = serverResponse.body;
-    if (!response.seatbid) {
+    if (!response.seatbid || !response?.seatbid[0]) {
       return [];
     }
     let rtbBids = response.seatbid
@@ -142,11 +142,8 @@ function buildImp(bidRequest, secure) {
     format: sizes.map(wh => parseGPTSingleSizeArrayToRtbSize(wh)),
     topframe: 0
   };
-  let floor = getBidFloor(bidRequest, BANNER, sizes);
-  if (floor) {
-    imp.bidfloor = floor;
-  }
-  if (bidRequest.ortb2Imp !== undefined && typeof bidRequest.ortb2Imp.ext === 'object') {
+  imp.bidfloor = getBidFloor(bidRequest, BANNER, sizes) || 0;
+  if (bidRequest.ortb2Imp?.ext) {
     imp.ext = bidRequest.ortb2Imp.ext;
   }
   return imp;
