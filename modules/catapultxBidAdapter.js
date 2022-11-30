@@ -31,8 +31,8 @@ export const spec = {
     let secure = (bidderRequest.refererInfo && bidderRequest.refererInfo.referer.indexOf('https:') === 0) ? 1 : 0;
     let imps = bidRequests.map(bidRequest => buildImp(bidRequest, secure));
     let requests = [];
-    let qxData = bidRequests[0].params.qxData !== undefined ? bidRequests[0].params.qxData : null;
-    let apiUrl = bidRequests[0].params.apiUrl !== undefined ? bidRequests[0].params.apiUrl : DEFAULT_API_URL;
+    let qxData = bidRequests[0].params?.qxData;
+    let apiUrl = bidRequests[0].params?.apiUrl || DEFAULT_API_URL;
     const request = buildMonetizeRequest(imps, bidderRequest, qxData);
     requests.push({
       method: 'POST',
