@@ -28,7 +28,7 @@ export const spec = {
    * @returns {ServerRequest[]}
    */
   buildRequests: function (bidRequests, bidderRequest) {
-    let secure = (bidderRequest.refererInfo && bidderRequest.refererInfo.referer.indexOf('https:') === 0) ? 1 : 0;
+    let secure = bidderRequest?.refererInfo?.page.indexOf('https:') === 0 ? 1 : 0;
     let imps = bidRequests.map(bidRequest => buildImp(bidRequest, secure));
     let requests = [];
     let qxData = bidRequests[0].params?.qxData;

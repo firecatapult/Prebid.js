@@ -220,7 +220,7 @@ describe('CatapultX adapter', function () {
   });
 
   function buildBidderRequest(url = 'https://example.com/index.html', params = {}) {
-    return Object.assign({}, params, {refererInfo: {referer: url, reachedTop: true}, timeout: 3000, bidderCode: 'catapultx'});
+    return Object.assign({}, params, {refererInfo: {page: url, reachedTop: true}, timeout: 3000, bidderCode: 'catapultx'});
   }
   const DEFAULT_BIDDER_REQUEST = buildBidderRequest();
 
