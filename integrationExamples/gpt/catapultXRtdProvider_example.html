@@ -15,9 +15,11 @@
         },
         bids: [
           {
-            bidder: 'appnexus',
+            bidder: 'catapultx',
             params: {
-              placementId: 13144370
+              groupId: 'internal',
+              //remove apiUrl before submitting testing only
+              //apiUrl: 'https://localhost:5001'
             }
           }
         ]
@@ -27,7 +29,7 @@
     var pbjs = pbjs || {};
     pbjs.que = pbjs.que || [];
   </script>
-  <script src="../../build/dev/prebid.js" async></script>
+  <script src="../../build/dev/prebid.js" async>//build before testing</script>
 
   <script>
     var googletag = googletag || {};
@@ -41,14 +43,14 @@
       pbjs.setConfig({
         debug: true,
         realTimeData: {
-          auctionDelay: testAuctionDelay, // lower in real scenario to meet publisher spec
+          auctionDelay: testAuctionDelay,
           dataProviders: [
             {
-              name: "1plusX",
+              name: "catapultxRTDModule",
               waitForIt: true,
               params: {
-                customerId: 'acme',
-                bidders: ['appnexus'],
+                groupId: 'internal',
+                bidders: ['catapultx'],
                 timeout: 1000
               }
 
@@ -90,7 +92,7 @@
 
   <script>
     googletag.cmd.push(function () {
-      googletag.defineSlot('/112115922/FL_PB_MedRect', [[300, 250], [300, 600]], 'test-div').addService(googletag.pubads());
+      googletag.defineSlot('/21681896075/catapultx/header-bidding-div-1', [[300, 250], [300, 600]], 'test-div').addService(googletag.pubads());
       googletag.pubads().enableSingleRequest();
       googletag.enableServices();
     });
@@ -98,7 +100,7 @@
 </head>
 
 <body>
-  <h2>1plusX RTD Module for Prebid</h2>
+  <h2>catapultx RTD Module for Prebid</h2>
 
   <div id='test-div'>
     <script>

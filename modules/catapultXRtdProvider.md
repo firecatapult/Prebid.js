@@ -1,27 +1,27 @@
-# 1plusX Real-time Data Submodule
+# catapultx Real-time Data Submodule
 
 ## Overview
 
-    Module Name: 1plusX Rtd Provider
-    Module Type: Rtd Provider
-    Maintainer: dc-team-1px@triplelift.com
+```
+Module Name: catapultx Rtd Provider
+Module Type: Rtd Provider
+Maintainer: mannese@catapultx.com
+```
 
 ## Description
 
-The 1plusX RTD module appends User and Contextual segments to the bidding object.
-
-## Usage
+The catapultx RTD module appends contextual segments to the bidding object based on site and video content
 
 ### Build
 ```
-gulp build --modules="rtdModule,1plusXRtdProvider,appnexusBidAdapter,..."  
+gulp build --modules="rtdModule,catapultxRtdProvider,catapultxBidAdapter,..."  
 ```
 
-> Note that the global RTD module, `rtdModule`, is a prerequisite of the 1plusX RTD module.
+> `rtdModule` is a required module to use catapultx RTD module.
 
 ### Configuration
 
-Use `setConfig` to instruct Prebid.js to initilize the 1plusX RTD module, as specified below. 
+Use `setConfig` to instruct Prebid.js to initilize the catapultx RTD module, as specified below. 
 
 This module is configured as part of the `realTimeData.dataProviders`
 
@@ -31,35 +31,24 @@ pbjs.setConfig({
     realTimeData: {
         auctionDelay: TIMEOUT,
         dataProviders: [{
-            name: '1plusX',
+            name: 'catapultx',
             waitForIt: true,
             params: {
-                customerId: 'acme',
-                bidders: ['appnexus', 'rubicon'],
+                groupId: 'ABC123', //required parameter
+                bidders: ['catapultx', 'adapter2'],
                 timeout: TIMEOUT
             }
         }]
     }
 });
+
 ```
-
-### Parameters 
-
-| Name              | Type          | Description                                                      | Default           |
-| :---------------- | :------------ | :--------------------------------------------------------------- |:----------------- |
-| name              | String        | Real time data module name                                       | Always '1plusX'   |
-| waitForIt         | Boolean       | Should be `true` if there's an `auctionDelay` defined (optional) | `false`           |
-| params            | Object        |                                                                  |                   |
-| params.customerId | String        | Your 1plusX customer id                                          |                   |
-| params.bidders    | Array<string> | List of bidders for which you would like data to be set          |                   |
-| params.timeout    | Integer       | timeout (ms)                                                     | 1000ms            |
-
 ## Testing 
 
-To view an example of how the 1plusX RTD module works :
+To view an example of how the catapultx RTD module works :
 
-`gulp serve --modules=rtdModule,1plusXRtdProvider,appnexusBidAdapter,rubiconBidAdapter`
+`gulp serve --modules=rtdModule,catapultxRtdProvider,catapultxBidAdapter`
 
-and then point your browser at:
+navigate to:
 
-`http://localhost:9999/integrationExamples/gpt/1plusXRtdProvider_example.html`
+`http://localhost:9999/integrationExamples/gpt/catapultxRtdProvider_example.html`

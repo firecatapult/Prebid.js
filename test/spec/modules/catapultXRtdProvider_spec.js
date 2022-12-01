@@ -1,6 +1,7 @@
 import { config } from 'src/config';
+//they exported the function to unit test every one individually, something to consider
 import {
-  onePlusXSubmodule,
+  catapultxSubmodule,
   segtaxes,
   extractConfig,
   buildOrtb2Updates,
@@ -8,11 +9,11 @@ import {
   setTargetingDataToConfig,
   extractConsent,
   getPapiUrl
-} from 'modules/1plusXRtdProvider';
+} from 'modules/catapultxRtdProvider';
+//should we be using chai here i do not know check docs
 import assert from 'assert';
-import { extractFpid } from '../../../modules/1plusXRtdProvider';
 
-describe('1plusXRtdProvider', () => {
+describe('catapultxRtdProvider', () => {
   // Fake server config
   let fakeServer;
   const fakeResponseHeaders = {
@@ -28,7 +29,7 @@ describe('1plusXRtdProvider', () => {
   const reqBidsConfigObj = {
     adUnits: [{
       bids: [
-        { bidder: 'appnexus' }
+        { bidder: 'catapultx' }
       ]
     }]
   };
@@ -40,6 +41,7 @@ describe('1plusXRtdProvider', () => {
       site: { ext: {} }
     }
   }
+  //leaving for comparitive purposes
   const bidderConfigInitialWith1plusXUserData = {
     ortb2: {
       user: {
@@ -79,6 +81,7 @@ describe('1plusXRtdProvider', () => {
     }
   }
   // Util functions
+  // not sure if this is useful
   const randomBidder = (len = 5) => Math.random().toString(36).replace(/[^a-z]+/g, '').substring(0, len);
 
   before(() => {
@@ -87,6 +90,7 @@ describe('1plusXRtdProvider', () => {
 
   after(() => { })
 
+  //model this after our bid adapter spec
   beforeEach(() => {
     fakeServer = sinon.createFakeServer();
     fakeServer.respondWith('GET', '*', [200, fakeResponseHeaders, JSON.stringify(fakeResponse)]);
@@ -94,9 +98,9 @@ describe('1plusXRtdProvider', () => {
     fakeServer.autoRespond = true;
   })
 
-  describe('onePlusXSubmodule', () => {
+  describe('catapultxSubmodule', () => {
     it('init is successfull', () => {
-      const initResult = onePlusXSubmodule.init();
+      const initResult = catapultxSubmodule.init();
       expect(initResult).to.be.true;
     })
 
@@ -105,7 +109,7 @@ describe('1plusXRtdProvider', () => {
       {
         const callbackSpy = sinon.spy();
         const config = { params: { customerId: 'test', bidders: ['appnexus'] } };
-        onePlusXSubmodule.getBidRequestData(reqBidsConfigObj, callbackSpy, config);
+        catapultxSubmodule.getBidRequestData(reqBidsConfigObj, callbackSpy, config);
         setTimeout(() => {
           expect(callbackSpy.calledOnce).to.be.true
         }, 100)
@@ -114,7 +118,7 @@ describe('1plusXRtdProvider', () => {
       {
         const callbackSpy = sinon.spy();
         const config = {}
-        onePlusXSubmodule.getBidRequestData(reqBidsConfigObj, callbackSpy, config);
+        catapultxSubmodule.getBidRequestData(reqBidsConfigObj, callbackSpy, config);
         setTimeout(() => {
           expect(callbackSpy.calledOnce).to.be.true
         }, 100);
@@ -123,7 +127,7 @@ describe('1plusXRtdProvider', () => {
       {
         const callbackSpy = sinon.spy();
         const config = { customerId: 'test' }
-        onePlusXSubmodule.getBidRequestData(reqBidsConfigObj, callbackSpy, config);
+        catapultxSubmodule.getBidRequestData(reqBidsConfigObj, callbackSpy, config);
         setTimeout(() => {
           expect(callbackSpy.calledOnce).to.be.true
         }, 100);
@@ -309,38 +313,6 @@ describe('1plusXRtdProvider', () => {
         }
       }
     })
-  })
-
-  describe('extractFpid', () => {
-    it('correctly extracts an ope fpid if present', () => {
-      window.localStorage.setItem('ope_fpid', 'oneplusx_test_key')
-      const id1 = extractFpid()
-      window.localStorage.removeItem('ope_fpid')
-      const id2 = extractFpid()
-      expect(id1).to.equal('oneplusx_test_key')
-      expect(id2).to.equal(null)
-    })
-  })
-
-  describe('getPapiUrl', () => {
-    const customer = 'acme'
-    const consent = {
-      gdpr: {
-        gdprApplies: 1,
-        consentString: 'myConsent'
-      }
-    }
-
-    it('correctly builds URLs if gdpr parameters are present', () => {
-      const url1 = getPapiUrl(customer)
-      const url2 = getPapiUrl(customer, extractConsent(consent))
-      expect(['&consent_string=myConsent&gdpr_applies=1', '&gdpr_applies=1&consent_string=myConsent']).to.contain(url2.replace(url1, ''))
-    })
-
-    it('correctly builds URLs if fpid parameters are present')
-    const url1 = getPapiUrl(customer)
-    const url2 = getPapiUrl(customer, {}, 'my_first_party_id')
-    expect(url2.replace(url1, '')).to.equal('&fpid=my_first_party_id')
   })
 
   describe('updateBidderConfig', () => {

@@ -6,9 +6,13 @@ import {
   isNumber, isArray, deepSetValue
 } from '../src/utils.js';
 
+//why are all of these functions exported? do they have to be or 
+//can we just export the required functions?
+
 //we will use this
 export const segtaxes = {
-  // cf. https://github.com/InteractiveAdvertisingBureau/openrtb/pull/108
+  //read then delete (probably in the docs we already have)
+  // https://github.com/InteractiveAdvertisingBureau/openrtb/pull/108
   AUDIENCE: 526,
   CONTENT: 527,
 };
@@ -20,7 +24,6 @@ export const catapultxSubmodule = {
   getBidRequestData: getBidRequestData
 }
 
-// Functions exported in submodule object
 /**
  * Init - we will always init because we transmitting data
  * about the website and its content
@@ -39,21 +42,17 @@ export const catapultxSubmodule = {
  * @param {Object} moduleConfig Configuration for 1plusX RTD module
  * @param {Object} userConsent
  */
- const getBidRequestData = (reqBidsConfigObj, callback, moduleConfig, userConsent) => {
+ const getBidRequestData = async (reqBidsConfigObj, callback, moduleConfig, userConsent) => {
   try {
     // Get the required config
     const { customerId, bidders } = extractConfig(moduleConfig, reqBidsConfigObj);
-    // Get PAPI URL
-    const papiUrl = getPapiUrl(customerId, extractConsent(userConsent) || {}, extractFpid())
-    // Call PAPI
-    getTargetingDataFromPapi(papiUrl)
-      .then((papiResponse) => {
-        logMessage(LOG_PREFIX, 'Get targeting data request successful');
-        setTargetingDataToConfig(papiResponse, { bidders });
-        callback();
-      })
+    const apiUrl = `${apiUrl}/api/v1/monetize/resources/prebid/${reqBidsConfigObj.params.groupId}` //discover the best way to include groupId
+    const data = await getData(apiUrl);
+    //transform data
   } catch (error) {
     logError(LOG_PREFIX, error);
+    //seems odd to do the callback in the error block, but we will
+    //know more about how we will handle this when we implement on test pages    
     callback();
   }
 }
@@ -66,12 +65,13 @@ export const catapultxSubmodule = {
  */
 export const extractConfig = (moduleConfig, reqBidsConfigObj) => {
   // CustomerId
-  const customerId = moduleConfig.params?.customerId;
-  if (!customerId) {
-    throw new Error('Missing parameter customerId in moduleConfig');
+  const groupId = moduleConfig.params?.groupId;
+  if (!groupId) {
+    throw new Error('Missing parameter groupId in moduleConfig');
   }
   // Timeout
   const tempTimeout = moduleConfig.params?.timeout;
+  //this can be optimized or removed
   const timeout = isNumber(tempTimeout) && tempTimeout > 300 ? tempTimeout : 1000;
 
   // Bidders
@@ -83,7 +83,9 @@ export const extractConfig = (moduleConfig, reqBidsConfigObj) => {
   const adUnitBidders = reqBidsConfigObj.adUnits
     .flatMap(({ bids }) => bids.map(({ bidder }) => bidder))
     .filter((e, i, a) => a.indexOf(e) === i);
+    //we can probably remove isArray
   if (!isArray(adUnitBidders) || !adUnitBidders.length) {
+    //this error could be more descriptive
     throw new Error('Missing parameter bidders in bidRequestConfig');
   }
 
@@ -95,9 +97,14 @@ export const extractConfig = (moduleConfig, reqBidsConfigObj) => {
   return { customerId, timeout, bidders };
 }
 
+const getData = (apiUrl) => {
+  //do thing with data apiUrl
+}
+
+
+//we will probably want to have this for support purposes
 /**
- * Extracts consent from the prebid consent object and translates it
- * into a 1plusX profile api query parameter parameter dict
+ * Extracts consent from the prebid consent object 
  * @param {object} prebid gdpr object
  * @returns dictionary of papi gdpr query parameters
  */
@@ -119,68 +126,7 @@ export const extractConsent = ({ gdpr }) => {
   return result
 }
 
-/**
- * Extracts the OPE first party id field from local storage
- * @returns fpid string if found, else null
- */
-export const extractFpid = () => {
-  try {
-    const fpid = window.localStorage.getItem(OPE_FPID);
-    if (fpid) {
-      return fpid;
-    }
-    return null;
-  } catch (error) {
-    return null;
-  }
-}
-/**
- * Gets the URL of Profile Api from which targeting data will be fetched
- * @param {string} config.customerId
- * @param {object} consent query params as dict
- * @param {string} catapultx first party id (nullable)
- * @returns {string} URL to access 1plusX Profile API
- */
-export const getPapiUrl = (customerId, consent, fpid) => {
-  // https://[yourClientId].profiles.tagger.opecloud.com/[VERSION]/targeting?url=
-  const currentUrl = encodeURIComponent(window.location.href);
-  var papiUrl = `https://${customerId}.profiles.tagger.opecloud.com/${PAPI_VERSION}/targeting?url=${currentUrl}`;
-  if (consent) {
-    Object.entries(consent).forEach(([key, value]) => {
-      papiUrl += `&${key}=${value}`
-    })
-  }
-  if (fpid) {
-    papiUrl += `&fpid=${fpid}`
-  }
-
-  return papiUrl;
-}
-
-/**
- * Fetches targeting data. It contains the audience segments & the contextual topics
- * @param {string} papiUrl URL of profile API
- * @returns {Promise} Promise object resolving with data fetched from Profile API
- */
-const getTargetingDataFromPapi = (papiUrl) => {
-  return new Promise((resolve, reject) => {
-    const requestOptions = {
-      customHeaders: {
-        'Accept': 'application/json'
-      }
-    }
-    const callbacks = {
-      success(responseText, response) {
-        resolve(JSON.parse(response.response));
-      },
-      error(error) {
-        reject(error);
-      }
-    };
-    ajax(papiUrl, callbacks, null, requestOptions)
-  })
-}
-
+//leave for now for comparison purposes
 /**
  * Prepares the update for the ORTB2 object
  * @param {Object} targetingData Targeting data fetched from Profile API
@@ -212,6 +158,7 @@ export const buildOrtb2Updates = ({ segments = [], topics = [] }, bidder) => {
   return { userData, siteContentData };
 }
 
+//leave for now for comparison purposes
 /**
  * Merges the targeting data with the existing config for bidder and updates
  * @param {string} bidder Bidder for which to set config
@@ -253,14 +200,6 @@ export const updateBidderConfig = (bidder, ortb2Updates, bidderConfigs) => {
   return bidderConfigCopy;
 };
 
-const setAppnexusAudiences = (audiences) => {
-  config.setConfig({
-    appnexusAuctionKeywords: {
-      '1plusX': audiences,
-    },
-  });
-}
-
 /**
  * Updates bidder configs with the targeting data retreived from Profile API
  * @param {Object} papiResponse Response from Profile API
@@ -279,10 +218,6 @@ export const setTargetingDataToConfig = (papiResponse, { bidders }) => {
         bidders: [bidder],
         config: updatedBidderConfig
       });
-    }
-    if (bidder === 'appnexus') {
-      // Do the legacy stuff for appnexus with segments
-      setAppnexusAudiences(segments);
     }
   }
 }
