@@ -2,25 +2,62 @@ import { submodule } from '../src/hook.js';
 import { config } from '../src/config.js';
 import { ajax } from '../src/ajax.js';
 import {
-  logMessage, logError,
-  deepAccess, mergeDeep,
+  logMessage, logError, mergeDeep,
   isNumber, isArray, deepSetValue
 } from '../src/utils.js';
 
-// Constants
-const REAL_TIME_MODULE = 'realTimeData';
-const MODULE_NAME = '1plusX';
-const ORTB2_NAME = '1plusX.com'
-const PAPI_VERSION = 'v1.0';
-const LOG_PREFIX = '[1plusX RTD Module]: ';
-const OPE_FPID = 'ope_fpid'
-const LEGACY_SITE_KEYWORDS_BIDDERS = ['appnexus'];
+//we will use this
 export const segtaxes = {
   // cf. https://github.com/InteractiveAdvertisingBureau/openrtb/pull/108
   AUDIENCE: 526,
   CONTENT: 527,
 };
-// Functions
+
+// The RTD submodule object to be exported
+export const catapultxSubmodule = {
+  name: 'catapultxRTDModule',
+  init: init,
+  getBidRequestData: getBidRequestData
+}
+
+// Functions exported in submodule object
+/**
+ * Init - we will always init because we transmitting data
+ * about the website and its content
+ * @param {Object} config Module configuration
+ * @param {boolean} userConsent
+ * @returns true
+ */
+ const init = (config, userConsent) => {
+  return true;
+}
+
+/**
+ *
+ * @param {Object} reqBidsConfigObj Bid request configuration object
+ * @param {Function} callback Called on completion
+ * @param {Object} moduleConfig Configuration for 1plusX RTD module
+ * @param {Object} userConsent
+ */
+ const getBidRequestData = (reqBidsConfigObj, callback, moduleConfig, userConsent) => {
+  try {
+    // Get the required config
+    const { customerId, bidders } = extractConfig(moduleConfig, reqBidsConfigObj);
+    // Get PAPI URL
+    const papiUrl = getPapiUrl(customerId, extractConsent(userConsent) || {}, extractFpid())
+    // Call PAPI
+    getTargetingDataFromPapi(papiUrl)
+      .then((papiResponse) => {
+        logMessage(LOG_PREFIX, 'Get targeting data request successful');
+        setTargetingDataToConfig(papiResponse, { bidders });
+        callback();
+      })
+  } catch (error) {
+    logError(LOG_PREFIX, error);
+    callback();
+  }
+}
+
 /**
  * Extracts the parameters for 1plusX RTD module from the config object passed at instanciation
  * @param {Object} moduleConfig Config object passed to the module
@@ -29,16 +66,16 @@ export const segtaxes = {
  */
 export const extractConfig = (moduleConfig, reqBidsConfigObj) => {
   // CustomerId
-  const customerId = deepAccess(moduleConfig, 'params.customerId');
+  const customerId = moduleConfig.params?.customerId;
   if (!customerId) {
     throw new Error('Missing parameter customerId in moduleConfig');
   }
   // Timeout
-  const tempTimeout = deepAccess(moduleConfig, 'params.timeout');
+  const tempTimeout = moduleConfig.params?.timeout;
   const timeout = isNumber(tempTimeout) && tempTimeout > 300 ? tempTimeout : 1000;
 
   // Bidders
-  const biddersTemp = deepAccess(moduleConfig, 'params.bidders');
+  const biddersTemp = moduleConfig.params?.bidders;
   if (!isArray(biddersTemp) || !biddersTemp.length) {
     throw new Error('Missing parameter bidders in moduleConfig');
   }
@@ -188,7 +225,7 @@ export const updateBidderConfig = (bidder, ortb2Updates, bidderConfigs) => {
 
   if (site) {
     // Legacy : cf. comment on buildOrtb2Updates first lines
-    const currentSite = deepAccess(bidderConfigCopy, 'ortb2.site');
+    const currentSite = bidderConfigCopy.ortb2?.site;
     const updatedSite = mergeDeep(currentSite, site);
     deepSetValue(bidderConfigCopy, 'ortb2.site', updatedSite);
   }
@@ -250,49 +287,5 @@ export const setTargetingDataToConfig = (papiResponse, { bidders }) => {
   }
 }
 
-// Functions exported in submodule object
-/**
- * Init
- * @param {Object} config Module configuration
- * @param {boolean} userConsent
- * @returns true
- */
-const init = (config, userConsent) => {
-  return true;
-}
-
-/**
- *
- * @param {Object} reqBidsConfigObj Bid request configuration object
- * @param {Function} callback Called on completion
- * @param {Object} moduleConfig Configuration for 1plusX RTD module
- * @param {Object} userConsent
- */
-const getBidRequestData = (reqBidsConfigObj, callback, moduleConfig, userConsent) => {
-  try {
-    // Get the required config
-    const { customerId, bidders } = extractConfig(moduleConfig, reqBidsConfigObj);
-    // Get PAPI URL
-    const papiUrl = getPapiUrl(customerId, extractConsent(userConsent) || {}, extractFpid())
-    // Call PAPI
-    getTargetingDataFromPapi(papiUrl)
-      .then((papiResponse) => {
-        logMessage(LOG_PREFIX, 'Get targeting data request successful');
-        setTargetingDataToConfig(papiResponse, { bidders });
-        callback();
-      })
-  } catch (error) {
-    logError(LOG_PREFIX, error);
-    callback();
-  }
-}
-
-// The RTD submodule object to be exported
-export const catapultXSubmodule = {
-  name: MODULE_NAME,
-  init,
-  getBidRequestData
-}
-
-// Register the catapultXSubmodule as submodule of realTimeData
-submodule(REAL_TIME_MODULE, catapultXSubmodule);
+// Register the catapultxSubmodule as submodule of realTimeData
+submodule('realTimeData', catapultxSubmodule);
