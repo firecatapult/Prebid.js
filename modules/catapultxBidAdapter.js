@@ -37,8 +37,8 @@ export const spec = {
     requests.push({
       method: 'POST',
       url: `${apiUrl}/api/v1/monetize/resources/prebid/${bidRequests[0].params.groupId}`,
-      data: request,
-      options: {withCredentials: false}
+      data: JSON.stringify(request),
+      options: {withCredentials: false, contentType: 'application/json'}
     });
     return requests;
   },

@@ -5,10 +5,10 @@ import {
   logMessage, logError, mergeDeep,
   isNumber, isArray, deepSetValue
 } from '../src/utils.js';
-import { json } from 'express/lib/response';
+import { reject } from 'lodash';
 
 // const DEFAULT_API_URL = 'https://demand.catapultx.com';
-const DEFAULT_API_URL = 'http://localhost:5000';
+const DEFAULT_API_URL = 'https://localhost:5001';
 
 const missingDataError = (description, location, object) => {
   logError(`CatapultX RTD module unable to comeplete because of ${description} missing from the ${location}: `,object)
@@ -42,8 +42,8 @@ const missingDataError = (description, location, object) => {
   }
   try {
     const { groupId, apiUrl, validAdUnits, bidders } = getDataFromConfig(moduleConfig, reqBidsConfig, callback);
-    const requestUrl = `${apiUrl}/api/v1/analyze/video/prebid}`;
-    const data = await getContent(apiUrl, groupId, validAdUnits);
+    const requestUrl = `${apiUrl}/api/v1/analyze/video/prebid`;
+    getContent(requestUrl, groupId, validAdUnits).then(data => logMessage("shiloh data", data));
     //transform data
   } catch (error) {
     logError("[cx data module]", error); 
@@ -95,20 +95,26 @@ const getVideoAdUnits = (adUnits) => {
 }
 
 const getContent = async (apiUrl, groupId, validAdUnits) => {
-  const contextRequest = {
-    groupId: groupId,
-    videoUnits: validAdUnits.map(unit => {
-      logMessage("unit", unit);
-      return {adUnitCode: unit.code, videoUrl: unit.ortb2Imp.ext.data.videoUrl}
-    })
-  }
-  const options = {
-    contentType: 'application/json'
-  }
-
-  const contextResponse = await ajax(apiUrl, null, contextRequest, options)
-  logMessage("shiloh response", contextResponse)
-  return contextResponse
+  return new Promise((resolve, reject) => {
+    const contextRequest = {
+      groupId: groupId,
+      videoUnits: validAdUnits.map(unit => {
+        return {adUnitCode: unit.code, videoUrl: unit.ortb2Imp.ext.data.videoUrl}
+      })
+    }
+    const options = {
+      contentType: 'application/json'
+    }
+    const callbacks = {
+      success(text, data) {
+        resolve(JSON.parse(data.response));
+      },
+      error(error) {
+        reject(error)
+      }
+    }
+    ajax(apiUrl, callbacks, JSON.stringify(contextRequest), options)
+  })
 }
 
 //we will probably want to have this for support purposes
@@ -215,7 +221,7 @@ export const updateBidderConfig = (bidder, ortb2Updates, bidderConfigs) => {
  * @param {Object} config Module configuration
  * @param {string[]} config.bidders Bidders specified in module's configuration
  */
-export const setTargetingDataToConfig = (papiResponse, { bidders }) => {
+export const addContextDataToRequests = (papiResponse, { bidders }) => {
   const bidderConfigs = config.getBidderConfig();
   const { s: segments, t: topics } = papiResponse;
 
