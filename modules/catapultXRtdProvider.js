@@ -5,24 +5,15 @@ import {
   logMessage, logError, mergeDeep,
   isNumber, isArray, deepSetValue
 } from '../src/utils.js';
+import { json } from 'express/lib/response';
 
-//why are all of these functions exported? do they have to be or 
-//can we just export the required functions?
+// const DEFAULT_API_URL = 'https://demand.catapultx.com';
+const DEFAULT_API_URL = 'http://localhost:5000';
 
-//we will use this
-export const segtaxes = {
-  //read then delete (probably in the docs we already have)
-  // https://github.com/InteractiveAdvertisingBureau/openrtb/pull/108
-  AUDIENCE: 526,
-  CONTENT: 527,
+const missingDataError = (description, location, object) => {
+  logError(`CatapultX RTD module unable to comeplete because of ${description} missing from the ${location}: `,object)
+  throw new Error();
 };
-
-// The RTD submodule object to be exported
-export const catapultxSubmodule = {
-  name: 'catapultxRTDModule',
-  init: init,
-  getBidRequestData: getBidRequestData
-}
 
 /**
  * Init - we will always init because we transmitting data
@@ -32,75 +23,93 @@ export const catapultxSubmodule = {
  * @returns true
  */
  const init = (config, userConsent) => {
+  if(config.params === undefined || config.params?.bidders === null) {
+    return false;
+  }
   return true;
 }
 
 /**
  *
- * @param {Object} reqBidsConfigObj Bid request configuration object
+ * @param {Object} reqBidsConfig Bid request configuration object
  * @param {Function} callback Called on completion
  * @param {Object} moduleConfig Configuration for 1plusX RTD module
  * @param {Object} userConsent
  */
- const getBidRequestData = async (reqBidsConfigObj, callback, moduleConfig, userConsent) => {
+ const getBidRequestData = async (reqBidsConfig, callback, moduleConfig, userConsent) => {
+  if (!reqBidsConfig?.adUnits?.length ||reqBidsConfig?.adUnits?.length < 1){
+    missingDataError("adUnits", "request object", reqBidsConfig);
+  }
   try {
-    // Get the required config
-    const { customerId, bidders } = extractConfig(moduleConfig, reqBidsConfigObj);
-    const apiUrl = `${apiUrl}/api/v1/monetize/resources/prebid/${reqBidsConfigObj.params.groupId}` //discover the best way to include groupId
-    const data = await getData(apiUrl);
+    const { groupId, apiUrl, validAdUnits, bidders } = getDataFromConfig(moduleConfig, reqBidsConfig, callback);
+    const requestUrl = `${apiUrl}/api/v1/analyze/video/prebid}`;
+    const data = await getContent(apiUrl, groupId, validAdUnits);
     //transform data
   } catch (error) {
-    logError(LOG_PREFIX, error);
-    //seems odd to do the callback in the error block, but we will
-    //know more about how we will handle this when we implement on test pages    
+    logError("[cx data module]", error); 
     callback();
   }
 }
 
 /**
- * Extracts the parameters for 1plusX RTD module from the config object passed at instanciation
+ * Retrieves relevant values from configs provided to RTD adapter
  * @param {Object} moduleConfig Config object passed to the module
- * @param {Object} reqBidsConfigObj Config object for the bidders; each adapter has its own entry
+ * @param {Object} reqBidsConfig Config object for the bidders; each adapter has its own entry
  * @returns {Object} Extracted configuration parameters for the module
  */
-export const extractConfig = (moduleConfig, reqBidsConfigObj) => {
-  // CustomerId
+export const getDataFromConfig = (moduleConfig, reqBidsConfig) => {
+  //two options
+  //1 make groupid optional so anyone can use our service
+  //2 make it required so we can add group specific modifiers to content object
   const groupId = moduleConfig.params?.groupId;
   if (!groupId) {
-    throw new Error('Missing parameter groupId in moduleConfig');
+    missingDataError("groupId", "module config", moduleConfig)
   }
-  // Timeout
-  const tempTimeout = moduleConfig.params?.timeout;
-  //this can be optimized or removed
-  const timeout = isNumber(tempTimeout) && tempTimeout > 300 ? tempTimeout : 1000;
+  //apiUrl
+  const apiUrl = moduleConfig.params?.apiUrl || DEFAULT_API_URL;
 
   // Bidders
-  const biddersTemp = moduleConfig.params?.bidders;
-  if (!isArray(biddersTemp) || !biddersTemp.length) {
-    throw new Error('Missing parameter bidders in moduleConfig');
+  const moduleBidders = moduleConfig.params?.bidders || [];
+  if (!moduleBidders.length) {
+    missingDataError("bidders", "module config", moduleConfig);
   }
 
-  const adUnitBidders = reqBidsConfigObj.adUnits
-    .flatMap(({ bids }) => bids.map(({ bidder }) => bidder))
-    .filter((e, i, a) => a.indexOf(e) === i);
-    //we can probably remove isArray
-  if (!isArray(adUnitBidders) || !adUnitBidders.length) {
-    //this error could be more descriptive
-    throw new Error('Missing parameter bidders in bidRequestConfig');
-  }
+  const validAdUnits = getVideoAdUnits(reqBidsConfig.adUnits);
 
-  const bidders = biddersTemp.filter(bidder => adUnitBidders.includes(bidder));
+  const adUnitBidders = new Set();
+  validAdUnits.forEach(unit => unit.bids.forEach(bid => adUnitBidders.add(bid.bidder)));
+
+  const bidders = moduleBidders.filter(bidder => adUnitBidders.has(bidder));
   if (!bidders.length) {
-    throw new Error('No bidRequestConfig bidder found in moduleConfig bidders');
+    missingDataError("matching adunit bidders", "module config bidder array", bidders);
   }
 
-  return { customerId, timeout, bidders };
+  return { apiUrl, groupId, validAdUnits, bidders };
 }
 
-const getData = (apiUrl) => {
-  //do thing with data apiUrl
+
+//returns an array that have the data necessary to analyze
+const getVideoAdUnits = (adUnits) => {
+  //this is not sanitized
+  return adUnits.filter(unit => unit?.ortb2Imp?.ext?.data?.videoUrl.length > 0);
 }
 
+const getContent = async (apiUrl, groupId, validAdUnits) => {
+  const contextRequest = {
+    groupId: groupId,
+    videoUnits: validAdUnits.map(unit => {
+      logMessage("unit", unit);
+      return {adUnitCode: unit.code, videoUrl: unit.ortb2Imp.ext.data.videoUrl}
+    })
+  }
+  const options = {
+    contentType: 'application/json'
+  }
+
+  const contextResponse = await ajax(apiUrl, null, contextRequest, options)
+  logMessage("shiloh response", contextResponse)
+  return contextResponse
+}
 
 //we will probably want to have this for support purposes
 /**
@@ -220,6 +229,13 @@ export const setTargetingDataToConfig = (papiResponse, { bidders }) => {
       });
     }
   }
+}
+
+// The RTD submodule object to be exported
+export const catapultxSubmodule = {
+  name: 'catapultx',
+  init: init,
+  getBidRequestData: getBidRequestData
 }
 
 // Register the catapultxSubmodule as submodule of realTimeData

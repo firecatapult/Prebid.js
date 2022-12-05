@@ -22,11 +22,12 @@ gulp build --modules="rtdModule,catapultxRtdProvider,catapultxBidAdapter,..."
 ### Configuration
 
 Use `setConfig` to instruct Prebid.js to initilize the catapultx RTD module, as specified below. 
+This module also requires that the videoUrl from the target player to specify what needs to be analyzed by our AI.
 
-This module is configured as part of the `realTimeData.dataProviders`
 
-```javascript
-var TIMEOUT = 1000;
+# RTD Module Setup
+
+```
 pbjs.setConfig({
     realTimeData: {
         auctionDelay: TIMEOUT,
@@ -36,13 +37,40 @@ pbjs.setConfig({
             params: {
                 groupId: 'ABC123', //required parameter
                 bidders: ['catapultx', 'adapter2'],
-                timeout: TIMEOUT
+                apiUrl: 'example.com' //internal for testing purposes only
+                timeout: 1000
             }
         }]
     }
 });
+```
+
+# Adunits integration
 
 ```
+    var adUnits = [{
+        code: 'target-div-01',
+        mediaTypes: {
+            banner: {
+                sizes: [[300, 250]], //example mediatype
+            }
+        },
+        bids: [{
+            bidder: "catapultx", //example
+            params: {
+                testParam: "test"
+            }
+        }],
+        ortb2Imp: {
+            ext: {
+                data: {
+                    videoUrl: "example.com/video.mp4" //required
+                }
+            }
+        }
+    }];
+```
+
 ## Testing 
 
 To view an example of how the catapultx RTD module works :
