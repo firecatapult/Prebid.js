@@ -2,16 +2,15 @@ import { submodule } from '../src/hook.js';
 import { config } from '../src/config.js';
 import { ajax } from '../src/ajax.js';
 import {
-  logMessage, logError, mergeDeep,
-  isNumber, isArray, deepSetValue
+  logMessage, logError, mergeDeep
 } from '../src/utils.js';
-import { reject } from 'lodash';
 
 // const DEFAULT_API_URL = 'https://demand.catapultx.com';
-const DEFAULT_API_URL = 'https://localhost:5001';
+// const DEFAULT_API_URL = 'https://localhost:5001';
+const DEFAULT_API_URL = 'https://dev-demand.catapultx.com';
 
 const missingDataError = (description, location, object) => {
-  logError(`CatapultX RTD module unable to comeplete because of ${description} missing from the ${location}: `,object)
+  logError(`CatapultX RTD module unable to comeplete because of ${description} missing from the ${location}: `, object)
   throw new Error();
 };
 
@@ -22,8 +21,8 @@ const missingDataError = (description, location, object) => {
  * @param {boolean} userConsent
  * @returns true
  */
- const init = (config, userConsent) => {
-  if(config.params === undefined || config.params?.bidders === null) {
+const init = (config, userConsent) => {
+  if (config.params === undefined || config.params?.bidders === null) {
     return false;
   }
   return true;
@@ -33,20 +32,20 @@ const missingDataError = (description, location, object) => {
  *
  * @param {Object} reqBidsConfig Bid request configuration object
  * @param {Function} callback Called on completion
- * @param {Object} moduleConfig Configuration for 1plusX RTD module
+ * @param {Object} moduleConfig 
  * @param {Object} userConsent
  */
- const getBidRequestData = async (reqBidsConfig, callback, moduleConfig, userConsent) => {
-  if (!reqBidsConfig?.adUnits?.length ||reqBidsConfig?.adUnits?.length < 1){
-    missingDataError("adUnits", "request object", reqBidsConfig);
+const getBidRequestData = async (reqBidsConfig, callback, moduleConfig, userConsent) => {
+  if (!reqBidsConfig?.adUnits?.length || reqBidsConfig?.adUnits?.length < 1) {
+    missingDataError('adUnits', 'request object', reqBidsConfig);
   }
   try {
     const { groupId, apiUrl, validAdUnits, bidders } = getDataFromConfig(moduleConfig, reqBidsConfig, callback);
     const requestUrl = `${apiUrl}/api/v1/analyze/video/prebid`;
-    getContent(requestUrl, groupId, validAdUnits).then(data => logMessage("shiloh data", data));
-    //transform data
+    getContent(requestUrl, groupId, validAdUnits).then(contextData => addContextDataToRequests(contextData, reqBidsConfig, bidders));
+    // transform data
   } catch (error) {
-    logError("[cx data module]", error); 
+    logError('[cx data module]', error);
     callback();
   }
 }
@@ -58,40 +57,55 @@ const missingDataError = (description, location, object) => {
  * @returns {Object} Extracted configuration parameters for the module
  */
 export const getDataFromConfig = (moduleConfig, reqBidsConfig) => {
-  //two options
-  //1 make groupid optional so anyone can use our service
-  //2 make it required so we can add group specific modifiers to content object
+  // two options
+  // 1 make groupid optional so anyone can use our service
+  // 2 make it required so we can add group specific modifiers to content object
   const groupId = moduleConfig.params?.groupId;
   if (!groupId) {
-    missingDataError("groupId", "module config", moduleConfig)
+    missingDataError('groupId', 'module config', moduleConfig)
   }
-  //apiUrl
+  // apiUrl
   const apiUrl = moduleConfig.params?.apiUrl || DEFAULT_API_URL;
 
   // Bidders
   const moduleBidders = moduleConfig.params?.bidders || [];
   if (!moduleBidders.length) {
-    missingDataError("bidders", "module config", moduleConfig);
+    missingDataError('bidders', 'module config', moduleConfig);
   }
 
-  const validAdUnits = getVideoAdUnits(reqBidsConfig.adUnits);
+  const validAdUnits = adUnits.filter(unit => locateVideoUrl(unit));
 
   const adUnitBidders = new Set();
   validAdUnits.forEach(unit => unit.bids.forEach(bid => adUnitBidders.add(bid.bidder)));
 
   const bidders = moduleBidders.filter(bidder => adUnitBidders.has(bidder));
   if (!bidders.length) {
-    missingDataError("matching adunit bidders", "module config bidder array", bidders);
+    missingDataError('matching adunit bidders', 'module config bidder array', bidders);
   }
 
   return { apiUrl, groupId, validAdUnits, bidders };
 }
 
 
-//returns an array that have the data necessary to analyze
-const getVideoAdUnits = (adUnits) => {
-  //this is not sanitized
-  return adUnits.filter(unit => unit?.ortb2Imp?.ext?.data?.videoUrl.length > 0);
+const locateVideoUrl = (unit) => {
+  const location = unit?.ortb2Imp?.ext?.data?.videoLocation
+  if(!location){
+    return false
+  } else {
+    const videoUrl = "https://d1w0hpjgs8j5kt.cloudfront.net/0a624516707733f07b9358c139789958.mp4"
+    
+    //this should work but runtime is weird
+    // document.querySelector(location)?.querySelector('video')?.src || 
+    // document.querySelector('#'+location)?.querySelector('video')?.src || 
+    // document.querySelector('.'+location)?.querySelector('video')?.src || 
+    // null
+    
+    if(videoUrl){
+      unit.ortb2Imp.ext.data.videoUrl = videoUrl;
+      return true
+    }
+    return false
+  }
 }
 
 const getContent = async (apiUrl, groupId, validAdUnits) => {
@@ -117,9 +131,9 @@ const getContent = async (apiUrl, groupId, validAdUnits) => {
   })
 }
 
-//we will probably want to have this for support purposes
+// we will probably want to have this for support purposes
 /**
- * Extracts consent from the prebid consent object 
+ * Extracts consent from the prebid consent object
  * @param {object} prebid gdpr object
  * @returns dictionary of papi gdpr query parameters
  */
@@ -141,39 +155,7 @@ export const extractConsent = ({ gdpr }) => {
   return result
 }
 
-//leave for now for comparison purposes
-/**
- * Prepares the update for the ORTB2 object
- * @param {Object} targetingData Targeting data fetched from Profile API
- * @param {string[]} segments Represents the audience segments of the user
- * @param {string[]} topics Represents the topics of the page
- * @returns {Object} Object describing the updates to make on bidder configs
- */
-export const buildOrtb2Updates = ({ segments = [], topics = [] }, bidder) => {
-  // Currently appnexus bidAdapter doesn't support topics in `site.content.data.segment`
-  // Therefore, writing them in `site.keywords` until it's supported
-  // Other bidAdapters do fine with `site.content.data.segment`
-  const writeToLegacySiteKeywords = LEGACY_SITE_KEYWORDS_BIDDERS.includes(bidder);
-  if (writeToLegacySiteKeywords) {
-    const site = {
-      keywords: topics.join(',')
-    };
-    return { site };
-  }
-
-  const userData = {
-    name: ORTB2_NAME,
-    segment: segments.map((segmentId) => ({ id: segmentId }))
-  };
-  const siteContentData = {
-    name: ORTB2_NAME,
-    segment: topics.map((topicId) => ({ id: topicId })),
-    ext: { segtax: segtaxes.CONTENT }
-  }
-  return { userData, siteContentData };
-}
-
-//leave for now for comparison purposes
+// leave for now for comparison purposes
 /**
  * Merges the targeting data with the existing config for bidder and updates
  * @param {string} bidder Bidder for which to set config
@@ -181,35 +163,19 @@ export const buildOrtb2Updates = ({ segments = [], topics = [] }, bidder) => {
  * @param {Object} bidderConfigs All current bidder configs
  * @returns {Object} Updated bidder config
  */
-export const updateBidderConfig = (bidder, ortb2Updates, bidderConfigs) => {
-  const { site, siteContentData, userData } = ortb2Updates;
+export const updateBidderConfig = (bidder, data, bidderConfigs) => {
   const bidderConfigCopy = mergeDeep({}, bidderConfigs[bidder]);
+  // at this point if we have multiple content objects from data
+  // we should just pickt the first one that comes through FOR EACH BIDDER (adunit attribution)
 
-  if (site) {
-    // Legacy : cf. comment on buildOrtb2Updates first lines
-    const currentSite = bidderConfigCopy.ortb2?.site;
-    const updatedSite = mergeDeep(currentSite, site);
-    deepSetValue(bidderConfigCopy, 'ortb2.site', updatedSite);
-  }
-
-  if (siteContentData) {
-    const siteDataPath = 'ortb2.site.content.data';
-    const currentSiteContentData = deepAccess(bidderConfigCopy, siteDataPath) || [];
-    const updatedSiteContentData = [
-      ...currentSiteContentData.filter(({ name }) => name != siteContentData.name),
-      siteContentData
-    ];
-    deepSetValue(bidderConfigCopy, siteDataPath, updatedSiteContentData);
-  }
-
-  if (userData) {
-    const userDataPath = 'ortb2.user.data';
-    const currentUserData = deepAccess(bidderConfigCopy, userDataPath) || [];
-    const updatedUserData = [
-      ...currentUserData.filter(({ name }) => name != userData.name),
-      userData
-    ];
-    deepSetValue(bidderConfigCopy, userDataPath, updatedUserData);
+  if(bidderConfigCopy === {}){
+    bidderConfigCopy = {
+      ortb2: {
+        site: {
+          content: data
+        }
+      }
+    }
   }
 
   return bidderConfigCopy;
@@ -221,13 +187,11 @@ export const updateBidderConfig = (bidder, ortb2Updates, bidderConfigs) => {
  * @param {Object} config Module configuration
  * @param {string[]} config.bidders Bidders specified in module's configuration
  */
-export const addContextDataToRequests = (papiResponse, { bidders }) => {
+export const addContextDataToRequests = (contextData, reqBidsConfig, bidders) => {
   const bidderConfigs = config.getBidderConfig();
-  const { s: segments, t: topics } = papiResponse;
 
   for (const bidder of bidders) {
-    const ortb2Updates = buildOrtb2Updates({ segments, topics }, bidder);
-    const updatedBidderConfig = updateBidderConfig(bidder, ortb2Updates, bidderConfigs);
+    const updatedBidderConfig = updateBidderConfig(bidder, contextData, bidderConfigs);
     if (updatedBidderConfig) {
       config.setBidderConfig({
         bidders: [bidder],
