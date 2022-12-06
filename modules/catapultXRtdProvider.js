@@ -66,10 +66,9 @@ export const getDataFromConfig = (moduleConfig, reqBidsConfig) => {
   if (!groupId) {
     missingDataError('groupId', 'module config', moduleConfig)
   }
-  // apiUrl
+  
   const apiUrl = moduleConfig.params?.apiUrl || DEFAULT_API_URL;
 
-  // Bidders
   const moduleBidders = moduleConfig.params?.bidders || [];
   if (!moduleBidders.length) {
     missingDataError('bidders', 'module config', moduleConfig);
@@ -94,7 +93,7 @@ const locateVideoUrl = (unit) => {
   if(!location){
     return false
   } else {
-    const videoUrl = "https://d1w0hpjgs8j5kt.cloudfront.net/0a624516707733f07b9358c139789958.mp4"
+    const videoUrl = "https://www.example.com/video.mp4"
     
     //@rob basically i cant get this to work on load but then it adds it later and
     //no matter how i await or handle time it does not populate properly
