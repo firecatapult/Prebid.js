@@ -2,7 +2,7 @@ import { submodule } from '../src/hook.js';
 import { config } from '../src/config.js';
 import { ajax } from '../src/ajax.js';
 import {
-  logMessage, logError, mergeDeep, deepSetValue
+  logError, mergeDeep, deepSetValue
 } from '../src/utils.js';
 
 // const DEFAULT_API_URL = 'https://demand.catapultx.com';
@@ -15,8 +15,7 @@ const missingDataError = (description, location, object) => {
 };
 
 /**
- * Init - we will always init because we transmitting data
- * about the website and its content
+ * Init - if there are bidders we will at least init
  * @param {Object} config Module configuration
  * @param {boolean} userConsent
  * @returns true
@@ -40,12 +39,11 @@ const getBidRequestData = async (reqBidsConfig, callback, moduleConfig, userCons
     missingDataError('adUnits', 'request object', reqBidsConfig);
   }
   try {
-    const { groupId, apiUrl, validAdUnits, bidders } = getDataFromConfig(moduleConfig, reqBidsConfig, callback);
+    const { groupId, apiUrl, validAdUnits, bidders } = getDataFromConfig(moduleConfig, reqBidsConfig);
     const requestUrl = `${apiUrl}/api/v1/analyze/video/prebid`;
     getContent(requestUrl, groupId, validAdUnits, bidders)
     .then(contextData => {
       addContextDataToRequests(contextData, reqBidsConfig, bidders)
-      logMessage("where content shiloh LAST", reqBidsConfig?.ortb2Fragments?.global, reqBidsConfig?.ortb2Fragments?.bidder)
       callback()
     });
   } catch (error) {
@@ -77,7 +75,7 @@ export const getDataFromConfig = (moduleConfig, reqBidsConfig) => {
     missingDataError('bidders', 'module config', moduleConfig);
   }
 
-  const validAdUnits = adUnits.filter(unit => locateVideoUrl(unit));
+  const validAdUnits = reqBidsConfig.adUnits.filter(unit => locateVideoUrl(unit));
 
   const adUnitBidders = new Set();
   validAdUnits.forEach(unit => unit.bids.forEach(bid => adUnitBidders.add(bid.bidder)));
@@ -97,6 +95,10 @@ const locateVideoUrl = (unit) => {
     return false
   } else {
     const videoUrl = "https://d1w0hpjgs8j5kt.cloudfront.net/0a624516707733f07b9358c139789958.mp4"
+    
+    //@rob basically i cant get this to work on load but then it adds it later and
+    //no matter how i await or handle time it does not populate properly
+    //which also somehow makes everything pass the filter
     
     //this should work but runtime is weird
     // document.querySelector(location)?.querySelector('video')?.src || 
@@ -141,6 +143,7 @@ const getContent = async (apiUrl, groupId, validAdUnits, bidders) => {
 }
 
 // we will probably want to have this for support purposes
+// !!!! currently not implemented
 /**
  * Extracts consent from the prebid consent object
  * @param {object} prebid gdpr object
@@ -164,11 +167,10 @@ export const extractConsent = ({ gdpr }) => {
   return result
 }
 
-// leave for now for comparison purposes
 /**
  * Merges the targeting data with the existing config for bidder and updates
  * @param {string} bidder Bidder for which to set config
- * @param {Object} ortb2Updates Updates to be applied to bidder config
+ * @param {Object} bidderContent selected content object to be added
  * @param {Object} bidderConfigs All current bidder configs
  * @returns {Object} Updated bidder config
  */
@@ -193,24 +195,17 @@ export const updateBidderConfig = (bidder, bidderContent, bidderConfigs) => {
 
 /**
  * Updates bidder configs with the targeting data retreived from Profile API
- * @param {Object} papiResponse Response from Profile API
- * @param {Object} config Module configuration
- * @param {string[]} config.bidders Bidders specified in module's configuration
+ * @param {Object} contextData Response from context endpoint
+ * @param {Object} reqBidsConfig request bids configuration
+ * @param {string[]} cbidders Bidders specified in module's configuration
  */
 export const addContextDataToRequests = (contextData, reqBidsConfig, bidders) => {
   const bidderConfigs = config.getBidderConfig();
 
   for (const bidder of bidders) {
     const bidderContent = contextData.find(x => x.bidder === bidder);
-    logMessage("shiloh function content", bidderContent, bidder, contextData)
     const updatedBidderOrtb2 = updateBidderConfig(bidder, bidderContent.videoContent, bidderConfigs);
-    logMessage("config updates", updatedBidderOrtb2);
-    logMessage("where content shiloh", reqBidsConfig?.ortb2Fragments?.global, reqBidsConfig?.ortb2Fragments?.bidder)
     if (updatedBidderOrtb2) {
-      // config.setBidderConfig({
-      //   bidders: [bidder],
-      //   config: updatedBidderConfig
-      // });
       mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {[bidder]: updatedBidderOrtb2.ortb2})
     }
   }
