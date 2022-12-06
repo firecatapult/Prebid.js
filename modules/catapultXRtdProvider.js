@@ -2,7 +2,7 @@ import { submodule } from '../src/hook.js';
 import { config } from '../src/config.js';
 import { ajax } from '../src/ajax.js';
 import {
-  logMessage, logError, mergeDeep
+  logMessage, logError, mergeDeep, deepSetValue
 } from '../src/utils.js';
 
 // const DEFAULT_API_URL = 'https://demand.catapultx.com';
@@ -42,8 +42,12 @@ const getBidRequestData = async (reqBidsConfig, callback, moduleConfig, userCons
   try {
     const { groupId, apiUrl, validAdUnits, bidders } = getDataFromConfig(moduleConfig, reqBidsConfig, callback);
     const requestUrl = `${apiUrl}/api/v1/analyze/video/prebid`;
-    getContent(requestUrl, groupId, validAdUnits).then(contextData => addContextDataToRequests(contextData, reqBidsConfig, bidders));
-    // transform data
+    getContent(requestUrl, groupId, validAdUnits, bidders)
+    .then(contextData => {
+      addContextDataToRequests(contextData, reqBidsConfig, bidders)
+      logMessage("where content shiloh LAST", reqBidsConfig?.ortb2Fragments?.global, reqBidsConfig?.ortb2Fragments?.bidder)
+      callback()
+    });
   } catch (error) {
     logError('[cx data module]', error);
     callback();
@@ -108,12 +112,17 @@ const locateVideoUrl = (unit) => {
   }
 }
 
-const getContent = async (apiUrl, groupId, validAdUnits) => {
+const getContent = async (apiUrl, groupId, validAdUnits, bidders) => {
   return new Promise((resolve, reject) => {
     const contextRequest = {
       groupId: groupId,
-      videoUnits: validAdUnits.map(unit => {
-        return {adUnitCode: unit.code, videoUrl: unit.ortb2Imp.ext.data.videoUrl}
+      videoUnits: validAdUnits.flatMap(unit => {
+        return unit.bids.flatMap(bid => {
+          if(bidders.indexOf(bid.bidder) > -1) {
+            return {adUnitCode: unit.code, bidder: bid.bidder, videoUrl: unit.ortb2Imp.ext.data.videoUrl}
+          }
+          return [];
+        })
       })
     }
     const options = {
@@ -163,19 +172,20 @@ export const extractConsent = ({ gdpr }) => {
  * @param {Object} bidderConfigs All current bidder configs
  * @returns {Object} Updated bidder config
  */
-export const updateBidderConfig = (bidder, data, bidderConfigs) => {
+export const updateBidderConfig = (bidder, bidderContent, bidderConfigs) => {
   const bidderConfigCopy = mergeDeep({}, bidderConfigs[bidder]);
-  // at this point if we have multiple content objects from data
-  // we should just pickt the first one that comes through FOR EACH BIDDER (adunit attribution)
 
-  if(bidderConfigCopy === {}){
-    bidderConfigCopy = {
+  if(bidderConfigCopy === {} || !bidderConfigCopy.ortb2?.site?.content) {
+    deepSetValue(bidderConfigCopy, 'ortb2.site.content', bidderContent)
+  } else {
+    const insert = {
       ortb2: {
         site: {
-          content: data
+          content: bidderContent
         }
       }
     }
+    mergeDeep(bidderConfigCopy, insert)
   }
 
   return bidderConfigCopy;
@@ -191,12 +201,17 @@ export const addContextDataToRequests = (contextData, reqBidsConfig, bidders) =>
   const bidderConfigs = config.getBidderConfig();
 
   for (const bidder of bidders) {
-    const updatedBidderConfig = updateBidderConfig(bidder, contextData, bidderConfigs);
-    if (updatedBidderConfig) {
-      config.setBidderConfig({
-        bidders: [bidder],
-        config: updatedBidderConfig
-      });
+    const bidderContent = contextData.find(x => x.bidder === bidder);
+    logMessage("shiloh function content", bidderContent, bidder, contextData)
+    const updatedBidderOrtb2 = updateBidderConfig(bidder, bidderContent.videoContent, bidderConfigs);
+    logMessage("config updates", updatedBidderOrtb2);
+    logMessage("where content shiloh", reqBidsConfig?.ortb2Fragments?.global, reqBidsConfig?.ortb2Fragments?.bidder)
+    if (updatedBidderOrtb2) {
+      // config.setBidderConfig({
+      //   bidders: [bidder],
+      //   config: updatedBidderConfig
+      // });
+      mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {[bidder]: updatedBidderOrtb2.ortb2})
     }
   }
 }

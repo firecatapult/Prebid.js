@@ -93,13 +93,14 @@ registerBidder(spec);
  * @returns {String}
  */
 function buildMonetizeRequest(imps, bidderRequest, qxData) {
-  let {gdprConsent, auctionId, timeout, uspConsent} = bidderRequest;
+  let {gdprConsent, auctionId, timeout, uspConsent, ortb2} = bidderRequest;
   let coppa = config.getConfig('coppa');
   let req = {
     'id': auctionId,
     'imp': imps,
     'tmax': timeout,
-    'coppa': 0
+    'coppa': 0,
+    'content': null
   };
   if (getDNT()) {
     req.dnt = 1;
@@ -120,6 +121,10 @@ function buildMonetizeRequest(imps, bidderRequest, qxData) {
   }
   if (uspConsent) {
     req.USPString = uspConsent;
+  }
+  //this will need to be santized on either end
+  if (ortb2?.site?.content) {
+    req.content = ortb2?.site?.content
   }
   return req;
 }
