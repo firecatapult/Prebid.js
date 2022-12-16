@@ -44,23 +44,24 @@ const init = (config, userConsent) => {
  * @param {Object} userConsent
  */
 const getBidRequestData = async (reqBidsConfig, callback, moduleConfig, userConsent) => {
-  if (!reqBidsConfig?.adUnits?.length || reqBidsConfig?.adUnits?.length < 1) {
-    logError('No adUnits present in prebid request', reqBidsConfig);
-    callback();
-  } else {
-    try {
-      const apiUrl = moduleConfig.params?.apiUrl || DEFAULT_API_URL;
-      const requestUrl = `${apiUrl}/api/v1/analyze/video/prebid`;
-      getContext(requestUrl, videoSrc)
-      .then(contextData => {
-        addContextDataToRequests(contextData, reqBidsConfig, bidders)
-        callback()
-      });
-    } catch (error) {
+  if (extendedSiteContent) {
+    logMessage("Adding context from previous content data with the same source");
+    addContextDataToRequests(extendedSiteContent, reqBidsConfig, moduleConfig.params.bidders)
+    callback()
+  }
+  const groupId = moduleConfig.params?.groupId || null;
+  const apiUrl = moduleConfig.params?.apiUrl || DEFAULT_API_URL;
+  const requestUrl = `${apiUrl}/api/v1/analyze/video/prebid`;
+  getContext(requestUrl, groupId, videoSrc)
+    .then(contextData => {
+      extendedSiteContent = contextData[0].videoContent;
+      addContextDataToRequests(extendedSiteContent, reqBidsConfig, moduleConfig.params.bidders)
+      callback()
+    })
+    .catch(error => {
       logError('[cx data module]', error);
       callback();
-    }
-  }
+    });
 }
 
 const locateVideoUrl = (elem) => {
@@ -74,17 +75,20 @@ const locateVideoUrl = (elem) => {
   }else{
     logMessage(`Video source not found (${videoElement})`);
     if((new Date()).getTime() - initializedTime < 1000){
-      setTimeout(()=>{locateVideoSrc(elem)}, 250);
+      setTimeout(()=>{locateVideoUrl(elem)}, 250);
     }
     return;
   }
 }
 
 const getContext = async (apiUrl, groupId, videoSrc) => {
+  if(!videoSrc){
+    missingDataError('video source', 'container lookup', null)
+  }
   return new Promise((resolve, reject) => {
     const contextRequest = {
       groupId: groupId,
-      videoUnits: [{adUnitCode: 'test', bidder: 'catapultx', videoUrl: videoSrc}]
+      videoUnits: [{videoUrl: videoSrc}]
     }
     const options = {
       contentType: 'application/json'
@@ -101,71 +105,49 @@ const getContext = async (apiUrl, groupId, videoSrc) => {
   })
 }
 
-// we will probably want to have this for support purposes
-// !!!! currently not implemented
 /**
- * Extracts consent from the prebid consent object
- * @param {object} prebid gdpr object
- * @returns dictionary of papi gdpr query parameters
- */
-export const extractConsent = ({ gdpr }) => {
-  if (!gdpr) {
-    return null
-  }
-  const { gdprApplies, consentString } = gdpr
-  if (!(gdprApplies == '0' || gdprApplies == '1')) {
-    throw 'TCF Consent: gdprApplies has wrong format'
-  }
-  if (consentString && typeof consentString != 'string') {
-    throw 'TCF Consent: consentString must be string if defined'
-  }
-  const result = {
-    'gdpr_applies': gdprApplies,
-    'consent_string': consentString
-  }
-  return result
-}
-
-/**
- * Merges the targeting data with the existing config for bidder and updates
+ * Merges the contextual data with the existing config for bidder and updates
  * @param {string} bidder Bidder for which to set config
- * @param {Object} bidderContent selected content object to be added
+ * @param {Object} contextData data from context endpoint
  * @param {Object} bidderConfigs All current bidder configs
  * @returns {Object} Updated bidder config
  */
-export const updateBidderConfig = (bidder, bidderContent, bidderConfigs) => {
+export const createFragment = (bidder, contextData, bidderConfigs) => {
   const bidderConfigCopy = mergeDeep({}, bidderConfigs[bidder]);
 
   if(bidderConfigCopy === {} || !bidderConfigCopy.ortb2?.site?.content) {
-    deepSetValue(bidderConfigCopy, 'ortb2.site.content', bidderContent)
+    deepSetValue(bidderConfigCopy, 'ortb2.site.content', contextData)
   } else {
     const insert = {
       ortb2: {
         site: {
-          content: bidderContent
+          content: contextData
         }
       }
     }
     mergeDeep(bidderConfigCopy, insert)
   }
 
-  return bidderConfigCopy;
+  return bidderConfigCopy.ortb2;
 };
 
 /**
- * Updates bidder configs with the targeting data retreived from Profile API
+ * Updates bidder configs with the response from catapultx context services
  * @param {Object} contextData Response from context endpoint
- * @param {Object} reqBidsConfig request bids configuration
- * @param {string[]} cbidders Bidders specified in module's configuration
+ * @param {string[]} bidders Bidders specified in module's configuration
  */
 export const addContextDataToRequests = (contextData, reqBidsConfig, bidders) => {
+  if (!reqBidsConfig?.adUnits?.length || reqBidsConfig?.adUnits?.length < 1) {
+    missingDataError('adUnits', 'prebid request', reqBidsConfig);
+  }
+
   const bidderConfigs = config.getBidderConfig();
 
   for (const bidder of bidders) {
-    const bidderContent = contextData.find(x => x.bidder === bidder);
-    const updatedBidderOrtb2 = updateBidderConfig(bidder, bidderContent.videoContent, bidderConfigs);
-    if (updatedBidderOrtb2) {
-      mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {[bidder]: updatedBidderOrtb2.ortb2})
+    logMessage('creating fragment for', bidder, contextData);
+    const bidderOrtb2Fragment = createFragment(bidder, contextData, bidderConfigs);
+    if (bidderOrtb2Fragment) {
+      mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {[bidder]: bidderOrtb2Fragment})
     }
   }
 }
