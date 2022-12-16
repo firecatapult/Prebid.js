@@ -2,12 +2,15 @@ import { submodule } from '../src/hook.js';
 import { config } from '../src/config.js';
 import { ajax } from '../src/ajax.js';
 import {
-  logError, mergeDeep, deepSetValue
+  logError, mergeDeep, deepSetValue, logMessage
 } from '../src/utils.js';
 
 // const DEFAULT_API_URL = 'https://demand.catapultx.com';
 // const DEFAULT_API_URL = 'https://localhost:5001';
 const DEFAULT_API_URL = 'https://dev-demand.catapultx.com';
+
+const initializedTime = (new Date()).getTime();
+let extendedSiteContent = null;
 
 const missingDataError = (description, location, object) => {
   logError(`CatapultX RTD module unable to comeplete because of ${description} missing from the ${location}: `, object)
@@ -21,7 +24,11 @@ const missingDataError = (description, location, object) => {
  * @returns true
  */
 const init = (config, userConsent) => {
-  if (config.params === undefined || config.params?.bidders === null) {
+  if (config.params === undefined || config.params?.bidders === null || config.params?.bidders.length > 1) {
+    logError('Prebid RTD module is not configured for any bidder')
+    return false;
+  } else if (!config.params?.videoContainer || config.params?.videoContainer.length < 1) {
+    logError('Missing videoContainer param in module configuration')
     return false;
   }
   return true;
@@ -39,9 +46,9 @@ const getBidRequestData = async (reqBidsConfig, callback, moduleConfig, userCons
     missingDataError('adUnits', 'request object', reqBidsConfig);
   }
   try {
-    const { groupId, apiUrl, validAdUnits, bidders } = getDataFromConfig(moduleConfig, reqBidsConfig);
+    const { groupId, apiUrl, videoSrc } = getDataFromConfig(moduleConfig);
     const requestUrl = `${apiUrl}/api/v1/analyze/video/prebid`;
-    getContent(requestUrl, groupId, validAdUnits, bidders)
+    getContext(requestUrl, groupId, videoSrc)
     .then(contextData => {
       addContextDataToRequests(contextData, reqBidsConfig, bidders)
       callback()
@@ -58,7 +65,10 @@ const getBidRequestData = async (reqBidsConfig, callback, moduleConfig, userCons
  * @param {Object} reqBidsConfig Config object for the bidders; each adapter has its own entry
  * @returns {Object} Extracted configuration parameters for the module
  */
-export const getDataFromConfig = (moduleConfig, reqBidsConfig) => {
+export const getDataFromConfig = (moduleConfig) => {
+  
+  const videoSrc = locateVideoUrl(moduleConfig.params.videoContainer);
+
   // two options
   // 1 make groupid optional so anyone can use our service
   // 2 make it required so we can add group specific modifiers to content object
@@ -69,26 +79,37 @@ export const getDataFromConfig = (moduleConfig, reqBidsConfig) => {
   
   const apiUrl = moduleConfig.params?.apiUrl || DEFAULT_API_URL;
 
-  const moduleBidders = moduleConfig.params?.bidders || [];
-  if (!moduleBidders.length) {
-    missingDataError('bidders', 'module config', moduleConfig);
+
+  return { apiUrl, groupId, videoSrc};
+}
+
+const locateVideoSrc = (elm) => {
+  console.log('Looking for video source on element: ' + elm);
+  let videoElement = document.querySelector(`#${elm},.${elm}`)?.querySelector('video');
+  let videoSource = (typeof videoElement !== 'undefined' && videoElement !== null)?videoElement.src || videoElement.querySelector('source').src:null;
+  if(videoSource !== null && videoSource !== ''){
+    console.log(`Video source '${videoSource}' found on node ${elm}`);
+    moduleConfigData.videoSrc = videoSource;
+
+    if(moduleConfigData.apiUrl !== null){
+      getVideoContent().then(contextData => {
+        extendedSiteContent = contextData;
+        console.log('extendedSiteContent retrieved', extendedSiteContent);
+      });
+    }
+
+    return true;
+  }else{
+    console.log(`Video source not found (${videoElement})`);
+    if((new Date()).getTime() - initializedTime < 1000){
+      setTimeout(()=>{locateVideoSrc(elm)}, 250);
+    }
+    return false
   }
-
-  const validAdUnits = reqBidsConfig.adUnits.filter(unit => locateVideoUrl(unit));
-
-  const adUnitBidders = new Set();
-  validAdUnits.forEach(unit => unit.bids.forEach(bid => adUnitBidders.add(bid.bidder)));
-
-  const bidders = moduleBidders.filter(bidder => adUnitBidders.has(bidder));
-  if (!bidders.length) {
-    missingDataError('matching adunit bidders', 'module config bidder array', bidders);
-  }
-
-  return { apiUrl, groupId, validAdUnits, bidders };
 }
 
 
-const locateVideoUrl = (unit) => {
+const locateVideoUrl = (elem) => {
   const location = unit?.ortb2Imp?.ext?.data?.videoLocation
   if(!location){
     return false
@@ -113,18 +134,11 @@ const locateVideoUrl = (unit) => {
   }
 }
 
-const getContent = async (apiUrl, groupId, validAdUnits, bidders) => {
+const getContext = async (apiUrl, groupId, videoSrc) => {
   return new Promise((resolve, reject) => {
     const contextRequest = {
       groupId: groupId,
-      videoUnits: validAdUnits.flatMap(unit => {
-        return unit.bids.flatMap(bid => {
-          if(bidders.indexOf(bid.bidder) > -1) {
-            return {adUnitCode: unit.code, bidder: bid.bidder, videoUrl: unit.ortb2Imp.ext.data.videoUrl}
-          }
-          return [];
-        })
-      })
+      videoUnits: [{adUnitCode: 'test', bidder: 'catapultx', videoUrl: videoSrc}]
     }
     const options = {
       contentType: 'application/json'
