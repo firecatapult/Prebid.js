@@ -11,6 +11,7 @@ const DEFAULT_API_URL = 'https://dev-demand.catapultx.com';
 
 const initializedTime = (new Date()).getTime();
 let extendedSiteContent = null;
+let videoSrc = null;
 
 const missingDataError = (description, location, object) => {
   logError(`CatapultX RTD module unable to comeplete because of ${description} missing from the ${location}: `, object)
@@ -31,6 +32,7 @@ const init = (config, userConsent) => {
     logError('Missing videoContainer param in module configuration')
     return false;
   }
+  locateVideoUrl(config.params.videoContainer);
   return true;
 }
 
@@ -43,94 +45,38 @@ const init = (config, userConsent) => {
  */
 const getBidRequestData = async (reqBidsConfig, callback, moduleConfig, userConsent) => {
   if (!reqBidsConfig?.adUnits?.length || reqBidsConfig?.adUnits?.length < 1) {
-    missingDataError('adUnits', 'request object', reqBidsConfig);
-  }
-  try {
-    const { groupId, apiUrl, videoSrc } = getDataFromConfig(moduleConfig);
-    const requestUrl = `${apiUrl}/api/v1/analyze/video/prebid`;
-    getContext(requestUrl, groupId, videoSrc)
-    .then(contextData => {
-      addContextDataToRequests(contextData, reqBidsConfig, bidders)
-      callback()
-    });
-  } catch (error) {
-    logError('[cx data module]', error);
+    logError('No adUnits present in prebid request', reqBidsConfig);
     callback();
-  }
-}
-
-/**
- * Retrieves relevant values from configs provided to RTD adapter
- * @param {Object} moduleConfig Config object passed to the module
- * @param {Object} reqBidsConfig Config object for the bidders; each adapter has its own entry
- * @returns {Object} Extracted configuration parameters for the module
- */
-export const getDataFromConfig = (moduleConfig) => {
-  
-  const videoSrc = locateVideoUrl(moduleConfig.params.videoContainer);
-
-  // two options
-  // 1 make groupid optional so anyone can use our service
-  // 2 make it required so we can add group specific modifiers to content object
-  const groupId = moduleConfig.params?.groupId;
-  if (!groupId) {
-    missingDataError('groupId', 'module config', moduleConfig)
-  }
-  
-  const apiUrl = moduleConfig.params?.apiUrl || DEFAULT_API_URL;
-
-
-  return { apiUrl, groupId, videoSrc};
-}
-
-const locateVideoSrc = (elm) => {
-  console.log('Looking for video source on element: ' + elm);
-  let videoElement = document.querySelector(`#${elm},.${elm}`)?.querySelector('video');
-  let videoSource = (typeof videoElement !== 'undefined' && videoElement !== null)?videoElement.src || videoElement.querySelector('source').src:null;
-  if(videoSource !== null && videoSource !== ''){
-    console.log(`Video source '${videoSource}' found on node ${elm}`);
-    moduleConfigData.videoSrc = videoSource;
-
-    if(moduleConfigData.apiUrl !== null){
-      getVideoContent().then(contextData => {
-        extendedSiteContent = contextData;
-        console.log('extendedSiteContent retrieved', extendedSiteContent);
+  } else {
+    try {
+      const apiUrl = moduleConfig.params?.apiUrl || DEFAULT_API_URL;
+      const requestUrl = `${apiUrl}/api/v1/analyze/video/prebid`;
+      getContext(requestUrl, videoSrc)
+      .then(contextData => {
+        addContextDataToRequests(contextData, reqBidsConfig, bidders)
+        callback()
       });
+    } catch (error) {
+      logError('[cx data module]', error);
+      callback();
     }
-
-    return true;
-  }else{
-    console.log(`Video source not found (${videoElement})`);
-    if((new Date()).getTime() - initializedTime < 1000){
-      setTimeout(()=>{locateVideoSrc(elm)}, 250);
-    }
-    return false
   }
 }
-
 
 const locateVideoUrl = (elem) => {
-  const location = unit?.ortb2Imp?.ext?.data?.videoLocation
-  if(!location){
-    return false
-  } else {
-    const videoUrl = "https://www.example.com/video.mp4"
-    
-    //@rob basically i cant get this to work on load but then it adds it later and
-    //no matter how i await or handle time it does not populate properly
-    //which also somehow makes everything pass the filter
-    
-    //this should work but runtime is weird
-    // document.querySelector(location)?.querySelector('video')?.src || 
-    // document.querySelector('#'+location)?.querySelector('video')?.src || 
-    // document.querySelector('.'+location)?.querySelector('video')?.src || 
-    // null
-    
-    if(videoUrl){
-      unit.ortb2Imp.ext.data.videoUrl = videoUrl;
-      return true
+  logMessage('Looking for video source on element: ' + elem);
+  let videoElement = document.querySelector(`#${elem},.${elem}`)?.querySelector('video');
+  let videoSource = (typeof videoElement !== 'undefined' && videoElement !== null)?videoElement.src || videoElement.querySelector('source').src : null;
+  if(videoSource !== null && videoSource !== ''){
+    logMessage(`Video source '${videoSource}' found on node ${elem}`);
+    videoSrc = videoSource;
+    return;
+  }else{
+    logMessage(`Video source not found (${videoElement})`);
+    if((new Date()).getTime() - initializedTime < 1000){
+      setTimeout(()=>{locateVideoSrc(elem)}, 250);
     }
-    return false
+    return;
   }
 }
 
