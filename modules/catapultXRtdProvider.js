@@ -9,11 +9,10 @@ import {
 // const DEFAULT_API_URL = 'https://localhost:5001';
 const DEFAULT_API_URL = 'https://dev-demand.catapultx.com';
 
-const initializedTime = (new Date()).getTime();
 let extendedSiteContent = null;
 let videoSrc = null;
 
-const missingDataError = (description, location, object) => {
+const missingDataError = (description, location, object = null) => {
   logError(`CatapultX RTD module unable to comeplete because of ${description} missing from the ${location}: `, object)
   throw new Error();
 };
@@ -32,7 +31,6 @@ const init = (config, userConsent) => {
     logError('Missing videoContainer param in module configuration')
     return false;
   }
-  locateVideoUrl(config.params.videoContainer);
   return true;
 }
 
@@ -44,22 +42,18 @@ const init = (config, userConsent) => {
  * @param {Object} userConsent
  */
 const getBidRequestData = async (reqBidsConfig, callback, moduleConfig, userConsent) => {
-  if (extendedSiteContent) {
-    logMessage("Adding context from previous content data with the same source");
-    addContextDataToRequests(extendedSiteContent, reqBidsConfig, moduleConfig.params.bidders)
-    callback()
-  }
+  logMessage("shiloh bids", JSON.stringify(reqBidsConfig.ortb2Fragments));
+  logMessage("shiloh metrics", JSON.stringify(reqBidsConfig), reqBidsConfig.metrics);
   const groupId = moduleConfig.params?.groupId || null;
   const apiUrl = moduleConfig.params?.apiUrl || DEFAULT_API_URL;
   const requestUrl = `${apiUrl}/api/v1/analyze/video/prebid`;
-  getContext(requestUrl, groupId, videoSrc)
+  const videoContainer = moduleConfig.params.videoContainer;
+  getContext(requestUrl, groupId, videoSourceUpdated(videoContainer))
     .then(contextData => {
-      extendedSiteContent = contextData[0].videoContent;
-      addContextDataToRequests(extendedSiteContent, reqBidsConfig, moduleConfig.params.bidders)
-      callback()
+      extendedSiteContent = contextData;
+      addContextDataToRequests(extendedSiteContent, reqBidsConfig, moduleConfig.params.bidders, callback)
     })
-    .catch(error => {
-      logError('[cx data module]', error);
+    .catch(() => {
       callback();
     });
 }
@@ -70,39 +64,51 @@ const locateVideoUrl = (elem) => {
   let videoSource = (typeof videoElement !== 'undefined' && videoElement !== null)?videoElement.src || videoElement.querySelector('source').src : null;
   if(videoSource !== null && videoSource !== ''){
     logMessage(`Video source '${videoSource}' found on node ${elem}`);
-    videoSrc = videoSource;
-    return;
+    return videoSource;
   }else{
     logMessage(`Video source not found (${videoElement})`);
-    if((new Date()).getTime() - initializedTime < 1000){
-      setTimeout(()=>{locateVideoUrl(elem)}, 250);
-    }
-    return;
+    return null;
   }
 }
 
-const getContext = async (apiUrl, groupId, videoSrc) => {
-  if(!videoSrc){
-    missingDataError('video source', 'container lookup', null)
+const videoSourceUpdated = (elem) => {
+  const currentVideoSource = locateVideoUrl(elem);
+  if(videoSrc = currentVideoSource) {
+    videoSrc = currentVideoSource;
+    return false;
+  } else {
+    videoSrc = currentVideoSource;
+    return true;
   }
-  return new Promise((resolve, reject) => {
-    const contextRequest = {
-      groupId: groupId,
-      videoUnits: [{videoUrl: videoSrc}]
-    }
-    const options = {
-      contentType: 'application/json'
-    }
-    const callbacks = {
-      success(text, data) {
-        resolve(JSON.parse(data.response));
-      },
-      error(error) {
-        reject(error)
+}
+
+const getContext = async (apiUrl, groupId, updated) => {
+  if(videoSrc === null) {
+    missingDataError('Video source url', 'Container location')
+  } else if (updated || (!updated && !extendedSiteContent)){
+    logMessage("Getting new context for video source");
+    return new Promise((resolve, reject) => {
+      const contextRequest = {
+        groupId: groupId,
+        videoUnits: [{videoUrl: videoSrc}]
       }
-    }
-    ajax(apiUrl, callbacks, JSON.stringify(contextRequest), options)
-  })
+      const options = {
+        contentType: 'application/json'
+      }
+      const callbacks = {
+        success(text, data) {
+          resolve(JSON.parse(data.response)[0].videoContent);
+        },
+        error(error) {
+          reject(error)
+        }
+      }
+      ajax(apiUrl, callbacks, JSON.stringify(contextRequest), options)
+    })
+  } else {
+    logMessage("Adding context from previous content data with the same source");
+    return new Promise(resolve => resolve(extendedSiteContent));
+  }
 }
 
 /**
@@ -136,9 +142,17 @@ export const createFragment = (bidder, contextData, bidderConfigs) => {
  * @param {Object} contextData Response from context endpoint
  * @param {string[]} bidders Bidders specified in module's configuration
  */
-export const addContextDataToRequests = (contextData, reqBidsConfig, bidders) => {
+export const addContextDataToRequests = (contextData, reqBidsConfig, bidders, callback) => {
   if (!reqBidsConfig?.adUnits?.length || reqBidsConfig?.adUnits?.length < 1) {
-    missingDataError('adUnits', 'prebid request', reqBidsConfig);
+    logError("sorry sorry sorry");
+    callback()
+    // missingDataError('adUnits', 'prebid request', reqBidsConfig);
+  }
+
+  myCustomData =  
+  { site: {
+      content: contextData
+    }
   }
 
   const bidderConfigs = config.getBidderConfig();
@@ -147,9 +161,15 @@ export const addContextDataToRequests = (contextData, reqBidsConfig, bidders) =>
     logMessage('creating fragment for', bidder, contextData);
     const bidderOrtb2Fragment = createFragment(bidder, contextData, bidderConfigs);
     if (bidderOrtb2Fragment) {
-      mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {[bidder]: bidderOrtb2Fragment})
+      deepSetValue(reqBidsConfig.ortb2Fragments.bidder, {[bidder]: bidderOrtb2Fragment})
     }
   }
+
+  // config.setConfig({ortb2:myCustomData})
+  // mergeDeep(reqBidsConfig.ortb2Fragments.global, myCustomData);
+  // mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {});
+  // logMessage("shiloh bids after", JSON.stringify(reqBidsConfig.ortb2Fragments));
+  callback();
 }
 
 // The RTD submodule object to be exported

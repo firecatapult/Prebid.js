@@ -160,7 +160,7 @@
 
 import {config} from '../../src/config.js';
 import {getHook, module} from '../../src/hook.js';
-import {logError, logInfo, logWarn} from '../../src/utils.js';
+import {logError, logInfo, logMessage, logWarn} from '../../src/utils.js';
 import * as events from '../../src/events.js';
 import CONSTANTS from '../../src/constants.json';
 import adapterManager, {gdprDataHandler, uspDataHandler} from '../../src/adapterManager.js';
@@ -323,6 +323,7 @@ export const setBidRequestsData = timedAuctionHook('rtd', function setBidRequest
       return;
     }
     isDone = true;
+    logMessage("rtd things shiloh", JSON.stringify(reqBidsConfigObj));
     clearTimeout(waitTimeout);
     fn.call(this, reqBidsConfigObj);
   }
