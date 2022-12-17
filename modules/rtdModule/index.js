@@ -323,7 +323,6 @@ export const setBidRequestsData = timedAuctionHook('rtd', function setBidRequest
       return;
     }
     isDone = true;
-    logMessage("rtd things shiloh", JSON.stringify(reqBidsConfigObj));
     clearTimeout(waitTimeout);
     fn.call(this, reqBidsConfigObj);
   }

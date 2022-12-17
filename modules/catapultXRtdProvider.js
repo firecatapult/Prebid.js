@@ -42,8 +42,6 @@ const init = (config, userConsent) => {
  * @param {Object} userConsent
  */
 const getBidRequestData = async (reqBidsConfig, callback, moduleConfig, userConsent) => {
-  // logMessage("shiloh bids", JSON.stringify(reqBidsConfig.ortb2Fragments));
-  // logMessage("shiloh metrics", JSON.stringify(reqBidsConfig), reqBidsConfig.metrics);
   const groupId = moduleConfig.params?.groupId || null;
   const apiUrl = moduleConfig.params?.apiUrl || DEFAULT_API_URL;
   const requestUrl = `${apiUrl}/api/v1/analyze/video/prebid`;
@@ -168,7 +166,6 @@ export const addContextDataToRequests = (contextData, reqBidsConfig, bidders) =>
   // config.setConfig({ortb2:myCustomData})
   // mergeDeep(reqBidsConfig.ortb2Fragments.global, myCustomData);
   // mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {});
-  // logMessage("shiloh bids after", JSON.stringify(reqBidsConfig.ortb2Fragments));
 }
 
 // The RTD submodule object to be exported
