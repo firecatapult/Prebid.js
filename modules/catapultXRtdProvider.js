@@ -42,8 +42,8 @@ const init = (config, userConsent) => {
  * @param {Object} userConsent
  */
 const getBidRequestData = async (reqBidsConfig, callback, moduleConfig, userConsent) => {
-  logMessage("shiloh bids", JSON.stringify(reqBidsConfig.ortb2Fragments));
-  logMessage("shiloh metrics", JSON.stringify(reqBidsConfig), reqBidsConfig.metrics);
+  // logMessage("shiloh bids", JSON.stringify(reqBidsConfig.ortb2Fragments));
+  // logMessage("shiloh metrics", JSON.stringify(reqBidsConfig), reqBidsConfig.metrics);
   const groupId = moduleConfig.params?.groupId || null;
   const apiUrl = moduleConfig.params?.apiUrl || DEFAULT_API_URL;
   const requestUrl = `${apiUrl}/api/v1/analyze/video/prebid`;
@@ -51,7 +51,8 @@ const getBidRequestData = async (reqBidsConfig, callback, moduleConfig, userCons
   getContext(requestUrl, groupId, videoSourceUpdated(videoContainer))
     .then(contextData => {
       extendedSiteContent = contextData;
-      addContextDataToRequests(extendedSiteContent, reqBidsConfig, moduleConfig.params.bidders, callback)
+      addContextDataToRequests(extendedSiteContent, reqBidsConfig, moduleConfig.params.bidders)
+      callback();
     })
     .catch(() => {
       callback();
@@ -142,10 +143,9 @@ export const createFragment = (bidder, contextData, bidderConfigs) => {
  * @param {Object} contextData Response from context endpoint
  * @param {string[]} bidders Bidders specified in module's configuration
  */
-export const addContextDataToRequests = (contextData, reqBidsConfig, bidders, callback) => {
+export const addContextDataToRequests = (contextData, reqBidsConfig, bidders) => {
   if (!reqBidsConfig?.adUnits?.length || reqBidsConfig?.adUnits?.length < 1) {
     logError("sorry sorry sorry");
-    callback()
     // missingDataError('adUnits', 'prebid request', reqBidsConfig);
   }
 
@@ -161,7 +161,7 @@ export const addContextDataToRequests = (contextData, reqBidsConfig, bidders, ca
     logMessage('creating fragment for', bidder, contextData);
     const bidderOrtb2Fragment = createFragment(bidder, contextData, bidderConfigs);
     if (bidderOrtb2Fragment) {
-      deepSetValue(reqBidsConfig.ortb2Fragments.bidder, {[bidder]: bidderOrtb2Fragment})
+      mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {[bidder]: bidderOrtb2Fragment})
     }
   }
 
@@ -169,7 +169,6 @@ export const addContextDataToRequests = (contextData, reqBidsConfig, bidders, ca
   // mergeDeep(reqBidsConfig.ortb2Fragments.global, myCustomData);
   // mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {});
   // logMessage("shiloh bids after", JSON.stringify(reqBidsConfig.ortb2Fragments));
-  callback();
 }
 
 // The RTD submodule object to be exported
