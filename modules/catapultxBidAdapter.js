@@ -1,5 +1,5 @@
 import {
-  isArray, getAdUnitSizes, parseGPTSingleSizeArrayToRtbSize, getDNT
+  isArray, getAdUnitSizes, parseGPTSingleSizeArrayToRtbSize, getDNT, logMessage
 } from '../src/utils.js';
 import {BANNER} from '../src/mediaTypes.js';
 import {registerBidder} from '../src/adapters/bidderFactory.js';
@@ -18,7 +18,7 @@ export const spec = {
   isBidRequestValid: function (bidRequest) {
     return 'params' in bidRequest &&
       'groupId' in bidRequest.params &&
-      bidRequest.params.groupId != '' && 'banner' in bidRequest.mediaTypes;
+      bidRequest.params?.groupId?.length > 0 && 'banner' in bidRequest.mediaTypes;
   },
   /**
    * build a valid request to be handled by catapultx demand api
@@ -28,19 +28,18 @@ export const spec = {
    * @returns {ServerRequest[]}
    */
   buildRequests: function (bidRequests, bidderRequest) {
-    let secure = bidderRequest?.refererInfo?.page.indexOf('https:') === 0 ? 1 : 0;
-    let imps = bidRequests.map(bidRequest => buildImp(bidRequest, secure));
-    let requests = [];
-    let qxData = bidRequests[0].params?.qxData;
-    let apiUrl = bidRequests[0].params?.apiUrl || DEFAULT_API_URL;
-    const request = buildMonetizeRequest(imps, bidderRequest, qxData);
-    requests.push({
-      method: 'POST',
-      url: `${apiUrl}/api/v1/monetize/resources/prebid/${bidRequests[0].params.groupId}`,
-      data: JSON.stringify(request),
-      options: {withCredentials: false, contentType: 'application/json'}
-    });
-    return requests;
+    const secure = bidderRequest?.refererInfo?.page.indexOf('https:') === 0 ? 1 : 0;
+    const imps = bidRequests.map(bidRequest => buildImp(bidRequest, secure));
+    const {qxData, apiUrl, groupId} = bidRequests[0].params;
+    const request = buildMonetizeRequest(imps, bidderRequest, qxData, groupId);
+    return [
+      {
+        method: 'POST',
+        url: `${apiUrl || DEFAULT_API_URL}/api/v1/monetize/resources/prebid`,
+        data: JSON.stringify(request),
+        options: {withCredentials: false, contentType: 'application/json'}
+      }
+    ];
   },
 
   /**
@@ -92,15 +91,15 @@ registerBidder(spec);
  * builds PrebidRequest object for catapultx monetize/prebid endpoint
  * @returns {String}
  */
-function buildMonetizeRequest(imps, bidderRequest, qxData) {
+function buildMonetizeRequest(imps, bidderRequest, qxData, groupId) {
   let {gdprConsent, auctionId, timeout, uspConsent, ortb2} = bidderRequest;
   let coppa = config.getConfig('coppa');
   let req = {
-    'id': auctionId,
-    'imp': imps,
-    'tmax': timeout,
-    'coppa': 0,
-    'content': null
+    id: auctionId,
+    imp: imps,
+    tmax: timeout,
+    coppa: 0,
+    groupId: groupId
   };
   if (getDNT()) {
     req.dnt = 1;
