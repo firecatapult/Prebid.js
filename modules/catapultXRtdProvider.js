@@ -4,8 +4,8 @@ import {
   logError, mergeDeep, logMessage
 } from '../src/utils.js';
 
-const DEFAULT_API_URL = 'https://localhost:5001';
-// const DEFAULT_API_URL = 'https://dev-demand.catapultx.com';
+// const DEFAULT_API_URL = 'https://localhost:5001';
+const DEFAULT_API_URL = 'https://dev-demand.catapultx.com';
 
 let extendedSiteContent = null;
 let videoSrc = null;
