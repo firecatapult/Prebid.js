@@ -1,5 +1,5 @@
 import {
-  isArray, getAdUnitSizes, parseGPTSingleSizeArrayToRtbSize, getDNT, logMessage
+  isArray, getAdUnitSizes, parseGPTSingleSizeArrayToRtbSize, getDNT
 } from '../src/utils.js';
 import {BANNER} from '../src/mediaTypes.js';
 import {registerBidder} from '../src/adapters/bidderFactory.js';
