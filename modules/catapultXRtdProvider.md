@@ -37,6 +37,7 @@ pbjs.setConfig({
             name: 'catapultx',
             waitForIt: true,
             params: {
+                groupId: 'ABC123', //required parameter
                 videoContainer: 'my-video-container', //required
                 bidders: ['catapultx', 'adapter2'], //optional
             }
@@ -47,8 +48,11 @@ pbjs.setConfig({
 
 ### Paramter Details
 
+#### `groupId` - Required
+- The CatapultX groupId linked to the publisher, this is required to make a request using this adapter
+
 #### `videoContainer` - Reqired
-- Should be the name of the container for the video you would like our API to get contextual data from
+- The name of the container for the video you would like our API to get contextual data from
 
 - Can either be the `class` or the `id` of the HTML element. 
 

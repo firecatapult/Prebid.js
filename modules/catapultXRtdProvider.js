@@ -1,10 +1,7 @@
 import { submodule } from '../src/hook.js';
 import { ajax } from '../src/ajax.js';
-import {
-  logError, mergeDeep, logMessage
-} from '../src/utils.js';
+import { logError, mergeDeep, logMessage } from '../src/utils.js';
 
-// const DEFAULT_API_URL = 'https://localhost:5001';
 const DEFAULT_API_URL = 'https://dev-demand.catapultx.com';
 
 let extendedSiteContent = null;
@@ -16,38 +13,47 @@ let videoSrc = null;
  * @returns {Boolean}
  */
 const init = (config) => {
-  if (!config.params || !config.params?.videoContainer) {
-    logError('Catapultx RTD module is not configured properly')
+  if (!config?.params?.groupId?.length > 0) {
+    logError('Catapultx RTD module config does not contain valid groupId parameter. Config params: ' + JSON.stringify(config.params))
+    return false;
+  } else if (!config?.params?.videoContainer?.length > 0) {
+    logError('Catapultx RTD module config does not contain valid videoContainer parameter. Config params: ' + JSON.stringify(config.params))
     return false;
   }
   return true;
 }
 
 /**
- *
+ * Processess prebid request and attempts to add context to ort2b fragments
  * @param {Object} reqBidsConfig Bid request configuration object
  * @param {Function} callback Called on completion
  * @param {Object} moduleConfig
  */
 const getBidRequestData = async (reqBidsConfig, callback, moduleConfig) => {
-  const {apiUrl, videoContainer, bidders} = moduleConfig.params;
+  const {apiUrl, videoContainer, bidders, groupId} = moduleConfig.params;
   const requestUrl = `${apiUrl || DEFAULT_API_URL}/api/v1/analyze/video/prebid`;
-  getContext(requestUrl, videoSourceUpdated(videoContainer))
+  getContext(requestUrl, groupId, videoSourceUpdated(videoContainer))
     .then(contextData => {
       extendedSiteContent = contextData;
       addContextDataToRequests(extendedSiteContent, reqBidsConfig, bidders)
       callback();
     })
-    .catch(() => {
+    .catch((e) => {
+      logError(e.message);
       callback();
     });
 }
 
+/**
+ * Searches within the target container for a video element and returns the source if possible
+ * @param {String} elem container name provided in module config, element to be searched for 
+ * @returns {String} url found in container src or null  
+ */
 const locateVideoUrl = (elem) => {
   logMessage('Looking for video source on node: ' + elem);
   let videoElement = document.querySelector(`#${elem},.${elem}`)?.querySelector('video');
   let newVideoSource = (typeof videoElement !== 'undefined' && videoElement !== null)?videoElement.src || videoElement.querySelector('source').src : null;
-  if(newVideoSource !== null && newVideoSource !== ''){
+  if(newVideoSource?.length > 0){
     logMessage(`Video source '${newVideoSource}' found on node ${elem}`);
     return newVideoSource;
   }else{
@@ -56,8 +62,14 @@ const locateVideoUrl = (elem) => {
   }
 }
 
-const videoSourceUpdated = (elem) => {
-  const currentVideoSource = locateVideoUrl(elem);
+
+/**
+ * Determines whether or not the target video source has changed
+ * @param {String} videoContainer container name provided in module config
+ * @returns {Boolean}
+ */
+const videoSourceUpdated = (videoContainer) => {
+  const currentVideoSource = locateVideoUrl(videoContainer);
   if(videoSrc === currentVideoSource) {
     videoSrc = currentVideoSource;
     return false;
@@ -67,15 +79,22 @@ const videoSourceUpdated = (elem) => {
   }
 }
 
-const getContext = async (apiUrl, updated) => {
+/**
+ * determines whether to send a request to context api and does so if necessary
+ * @param {String} apiUrl catapultx context api url 
+ * @param {String} groupId catapultx publisher groupId
+ * @param {Boolean} updated boolean indicating whether or not the video source url has changed since last lookup in runtime
+ * @returns {Promise} ortb Content object
+ */
+const getContext = async (apiUrl, groupId, updated) => {
   if(videoSrc === null) {
-    logError(`CatapultX RTD module unable to comeplete because Video source url missing on provided container node`)
-    throw new Error();
+    throw new Error('CatapultX RTD module unable to comeplete because Video source url missing on provided container node');
   } else if (updated || (!updated && !extendedSiteContent)){
     logMessage("Requesting new context data");
     return new Promise((resolve, reject) => {
       const contextRequest = {
-        videoUrl: videoSrc
+        videoUrl: videoSrc,
+        groupId: groupId
       }
       const options = {
         contentType: 'application/json'
@@ -118,12 +137,10 @@ export const addContextDataToRequests = (contextData, reqBidsConfig, bidders) =>
   }
 }
 
-// The RTD submodule object to be exported
 export const catapultxSubmodule = {
   name: 'catapultx',
-  init: init,
-  getBidRequestData: getBidRequestData
+  init,
+  getBidRequestData
 }
 
-// Register the catapultxSubmodule as submodule of realTimeData
 submodule('realTimeData', catapultxSubmodule);
