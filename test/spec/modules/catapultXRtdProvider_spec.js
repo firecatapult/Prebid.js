@@ -168,6 +168,17 @@ describe('catapultxRtdProvider', () => {
       container.remove();
     })
 
+    it('finds new video source on same container in between lookups', () => {
+      const container = addContainer(containerName);
+      const video = addVideoElement(container, 'http://hello.test.com/example.mp4')
+      const firstVideo = rtd.locateVideoUrl(containerName);
+      expect(firstVideo).to.be.equal('http://hello.test.com/example.mp4');
+      video.src = 'http://test.two.com/second.mp4'
+      const secondVideo = rtd.locateVideoUrl(containerName);
+      expect(secondVideo).to.be.equal('http://test.two.com/second.mp4');
+      container.remove();
+    })
+
     it('returns null for container with no source', () => {
       const container = addContainer(containerName);
       const result = rtd.locateVideoUrl(containerName);
@@ -185,11 +196,23 @@ describe('catapultxRtdProvider', () => {
     beforeEach(() => {
       rtd.videoSourceUpdated('set-src-null');
     })
-    it('returns true when video source is updated', () => {
+
+    it('returns true when container with video source is added', () => {
       const container = addContainer(containerName);
       addVideoElement(container, 'http://hello.test.com/example.mp4')
       const result = rtd.videoSourceUpdated(containerName);
       expect(result).to.be.true;
+      container.remove();
+    })
+
+    it('returns true when video source is updated', () => {
+      const container = addContainer(containerName);
+      const video = addVideoElement(container, 'http://hello.test.com/example.mp4')
+      const firstUpdate = rtd.videoSourceUpdated(containerName);
+      expect(firstUpdate).to.be.true;
+      video.src = 'http://test.two.com/second.mp4';
+      const secondUpdate = rtd.videoSourceUpdated(containerName);
+      expect(secondUpdate).to.be.true;
       container.remove();
     })
 
@@ -215,15 +238,21 @@ describe('catapultxRtdProvider', () => {
       const container = addContainer(containerName);
       addVideoElement(container, 'http://hello.test.com/example.mp4')
       const firstCall = rtd.videoSourceUpdated(containerName);
-      // expect(firstCall).to.be.true;
-      setTimeout(() => {
-        const secondCall = rtd.videoSourceUpdated(containerName);
-        expect(secondCall).to.be.false;
-      }, 100)
+      expect(firstCall).to.be.true;
+      const secondCall = rtd.videoSourceUpdated(containerName);
+      expect(secondCall).to.be.false;
       container.remove();
     })
   })
 
-  describe('getContext', () => {})
+  describe('getContext', () => {
+    let groupId;
+    let videoSrc;
+    let extendedSiteContent;
+
+    beforeEach
+
+    it('throws error and exits function if ')
+  })
   describe('addContextDataToRequests', () => {})
 })

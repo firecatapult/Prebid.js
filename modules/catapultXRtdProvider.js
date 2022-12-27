@@ -4,8 +4,10 @@ import { logError, mergeDeep, logMessage } from '../src/utils.js';
 
 const DEFAULT_API_URL = 'https://demand.catapultx.com';
 
-let extendedSiteContent = null;
-let videoSrc = null;
+export const qx = {
+  extendedSiteContent: null,
+  videoSrc: null
+}
 
 /**
  * Init if module configuration is valid
@@ -30,13 +32,14 @@ const init = (config) => {
  * @param {Object} moduleConfig
  */
 const getBidRequestData = (reqBidsConfig, callback, moduleConfig) => {
+  logMessage("quortex", reqBidsConfig);
   if (reqBidsConfig?.adUnits?.length > 0) {
     const {apiUrl, videoContainer, bidders, groupId} = moduleConfig.params;
     const requestUrl = `${apiUrl || DEFAULT_API_URL}/api/v1/analyze/video/prebid`;
     getContext(requestUrl, groupId, videoSourceUpdated(videoContainer))
       .then(contextData => {
-        extendedSiteContent = contextData;
-        addContextDataToRequests(extendedSiteContent, reqBidsConfig, bidders)
+        qx.extendedSiteContent = contextData;
+        addContextDataToRequests(qx.extendedSiteContent, reqBidsConfig, bidders)
         callback();
       })
       .catch((e) => {
@@ -74,11 +77,11 @@ export const locateVideoUrl = (elem) => {
  */
 export const videoSourceUpdated = (videoContainer) => {
   const currentVideoSource = locateVideoUrl(videoContainer);
-  if (videoSrc === currentVideoSource) {
-    videoSrc = currentVideoSource;
+  if (qx.videoSrc === currentVideoSource) {
+    qx.videoSrc = currentVideoSource;
     return false;
   } else {
-    videoSrc = currentVideoSource;
+    qx.videoSrc = currentVideoSource;
     return true;
   }
 }
@@ -91,13 +94,13 @@ export const videoSourceUpdated = (videoContainer) => {
  * @returns {Promise} ortb Content object
  */
 export const getContext = (apiUrl, groupId, updated) => {
-  if (videoSrc === null) {
+  if (qx.videoSrc === null) {
     return new Promise((resolve, reject) => reject(new Error('CatapultX RTD module unable to complete because Video source url missing on provided container node')));
-  } else if (updated || (!updated && !extendedSiteContent)) {
+  } else if (updated || (!updated && !qx.extendedSiteContent)) {
     logMessage('Requesting new context data');
     return new Promise((resolve, reject) => {
       const contextRequest = {
-        videoUrl: videoSrc,
+        videoUrl: qx.videoSrc,
         groupId: groupId
       }
       const options = {
@@ -116,7 +119,7 @@ export const getContext = (apiUrl, groupId, updated) => {
     })
   } else {
     logMessage('Adding Content object from existing context data with the same source');
-    return new Promise(resolve => resolve(extendedSiteContent));
+    return new Promise(resolve => resolve(qx.extendedSiteContent));
   }
 }
 
@@ -128,7 +131,7 @@ export const getContext = (apiUrl, groupId, updated) => {
  */
 export const addContextDataToRequests = (contextData, reqBidsConfig, bidders) => {
   if (contextData === null) {
-    logError('No context data recieved at this time for url: ' + videoSrc);
+    logError('No context data recieved at this time for url: ' + qx.videoSrc);
   } else {
     const fragment = { site: {content: contextData} }
     if (bidders) {
