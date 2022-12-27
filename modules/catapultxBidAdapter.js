@@ -121,7 +121,7 @@ function buildMonetizeRequest(imps, bidderRequest, qxData, groupId) {
   if (uspConsent) {
     req.USPString = uspConsent;
   }
-  //this will need to be santized on either end
+  // this will need to be santized on either end
   if (ortb2?.site?.content) {
     req.content = ortb2?.site?.content
   }

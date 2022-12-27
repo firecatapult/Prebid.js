@@ -4,7 +4,7 @@ import * as utils from 'src/utils';
 import {BANNER} from 'src/mediaTypes';
 import {config} from 'src/config';
 
-describe('CatapultX adapter', function () {
+describe('CatapultX adapter', () => {
   const sample_qxData = {
       groupId: 'internal',
       testKey: 'Key_1'
@@ -208,13 +208,13 @@ describe('CatapultX adapter', function () {
       'nbr': 0
     }
 
-  var sandbox;
+  let sandbox;
 
-  beforeEach(function () {
-    sandbox = sinon.sandbox.create();
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
   });
 
-  afterEach(function () {
+  afterEach(() => {
     sandbox.restore();
     config.resetConfig();
   });
@@ -232,20 +232,20 @@ describe('CatapultX adapter', function () {
     return requests
   }
 
-  describe('bid request validation', function () {
-    it('fails validation for bid with no params object', function () {
+  describe('bid request validation', () => {
+    it('fails validation for bid with no params object', () => {
       expect(spec.isBidRequestValid(no_params_bid)).to.be.equal(false);
     });
 
-    it('fails validation for bid with no groupId', function () {
+    it('fails validation for bid with no groupId', () => {
       expect(spec.isBidRequestValid(no_groupId_bid)).to.be.equal(false);
     });
 
-    it('fails validation for bid wth empty groupId', function () {
+    it('fails validation for bid wth empty groupId', () => {
       expect(spec.isBidRequestValid(empty_groupId_bid)).to.be.equal(false);
     });
 
-    it('will not validate non banner bids', function () {
+    it('will not validate non banner bids', () => {
       expect(spec.isBidRequestValid(native_bid)).to.be.equal(false);
     });
 
@@ -260,60 +260,60 @@ describe('CatapultX adapter', function () {
     })
   });
 
-  describe('interpreting group id and apiUrl', function () {
-    it('should default to default apiUrl', function () {
+  describe('interpreting group id and apiUrl', () => {
+    it('should default to default apiUrl', () => {
       let requests = buildRequest([no_apiUrl_has_qxData_bid]);
       expect(requests[0].url).to.have.string('https://demand.catapultx.com');
     });
 
-    it('should set apiUrl if sent in params', function () {
+    it('should set apiUrl if sent in params', () => {
       let requests = buildRequest([enriched_overlay_request]);
       expect(requests[0].url).to.have.string('example.com');
       expect(requests[0].url.split('/')[0]).to.be.eql('example.com');
     });
 
-    it('should set groupId from params', function () {
+    it('should set groupId from params', () => {
       let requests = buildRequest([enriched_overlay_request]);
       expect(requests[0].url).to.have.string('internal');
       expect(requests[0].url.split('/').pop()).to.be.eql('internal');
     });
   });
 
-  describe('ortb imp generation', function () {
+  describe('ortb imp generation', () => {
     let ortbImps;
 
-    before(function () {
+    before(() => {
       let requests = buildRequest([no_qxdata_has_apiurl_bid, enriched_overlay_request]);
       ortbImps = requests[0].data.imp;
     });
 
-    it('should have banner object', function () {
+    it('should have banner object', () => {
       expect(ortbImps[0]).to.have.property('banner');
     });
 
-    it('should have corresponding bidId', function () {
+    it('should have corresponding bidId', () => {
       expect(ortbImps[0]).to.have.property('id');
       expect(ortbImps[0].id).to.be.eql('testBid1');
       expect(ortbImps[1]).to.have.property('id');
       expect(ortbImps[1].id).to.be.eql('testBid3');
     });
 
-    it('should have format object', function () {
+    it('should have format object', () => {
       expect(ortbImps[0].banner).to.have.property('format');
       expect(ortbImps[0].banner.format).to.be.eql([{w: 300, h: 250}]);
     });
 
-    it('should evaluate and send secure value', function () {
+    it('should evaluate and send secure value', () => {
       expect(ortbImps[0]).to.have.property('secure', 1);
     });
 
-    it('should properly identify non https and send 0 for secure', function () {
+    it('should properly identify non https and send 0 for secure', () => {
       let httpRequests = buildRequest([enriched_overlay_request], buildBidderRequest('http://example.com/index.html'));
       let notSecure = httpRequests[0].data.imp[0];
       expect(notSecure).to.have.property('secure', 0);
     });
 
-    it('should have tagid', function () {
+    it('should have tagid', () => {
       expect(ortbImps[0]).to.have.property('tagid', 'adUnitTestCode');
     });
 
@@ -345,45 +345,45 @@ describe('CatapultX adapter', function () {
       expect(requests[0].data.imp[0]).to.have.property('bidfloor', 0.145);
     });
 
-    it('should not add ext object with no ortb2imp injection', function () {
+    it('should not add ext object with no ortb2imp injection', () => {
       expect(ortbImps[0]).to.not.have.property('ext');
     });
 
-    it('should map object from ortb2imp injection', function () {
+    it('should map object from ortb2imp injection', () => {
       expect(ortbImps[1]).to.have.property('ext');
       expect(ortbImps[1].ext).to.be.eql(enriched_overlay_request.ortb2Imp.ext);
     });
   });
 
-  describe('monetize request generation', function () {
+  describe('monetize request generation', () => {
     let monetizeRequest;
 
-    before(function () {
+    before(() => {
       let requests = buildRequest([no_qxdata_has_apiurl_bid, enriched_overlay_request]);
       monetizeRequest = requests[0].data;
     });
 
-    it('should have tmax', function () {
+    it('should have tmax', () => {
       expect(monetizeRequest.tmax).to.be.equal(3000);
     });
 
-    it('will not add qxData object if it does not exist', function () {
+    it('will not add qxData object if it does not exist', () => {
       expect(monetizeRequest).to.not.have.property('qxData');
     });
 
-    it('will send qxData object when applicable', function () {
+    it('will send qxData object when applicable', () => {
       let overlay_mock = buildRequest([enriched_overlay_request]);
       const enrichedRequest = overlay_mock[0].data;
       expect(enrichedRequest.qxData).to.be.eql(sample_qxData);
     });
 
-    it('will not add consent information if it does not exist', function () {
+    it('will not add consent information if it does not exist', () => {
       expect(monetizeRequest).to.not.have.property('GDPRApplies');
       expect(monetizeRequest).to.not.have.property('TCString');
       expect(monetizeRequest).to.not.have.property('USPString');
     });
 
-    it('should contain gdpr-related information if consent is configured', function () {
+    it('should contain gdpr-related information if consent is configured', () => {
       let requests = buildRequest([enriched_overlay_request],
         buildBidderRequest('https://example.com/index.html',
           {gdprConsent: {gdprApplies: true, consentString: 'tcStringValue', vendorData: {}}, uspConsent: '1YNN'}));
@@ -396,11 +396,11 @@ describe('CatapultX adapter', function () {
       expect(monetizeRequest.USPString).to.be.eql('1YNN');
     });
 
-    it('should send 0 value for coppa when not true', function () {
+    it('should send 0 value for coppa when not true', () => {
       expect(monetizeRequest.coppa).to.be.eql(0);
     });
 
-    it('should contain coppa if configured', function () {
+    it('should contain coppa if configured', () => {
       config.setConfig({coppa: true});
       let requests = buildRequest([no_qxdata_has_apiurl_bid]);
       monetizeRequest = requests[0].data;
@@ -408,7 +408,7 @@ describe('CatapultX adapter', function () {
       expect(monetizeRequest.coppa).to.be.eql(1);
     });
 
-    it('should only send configured values for consent information', function () {
+    it('should only send configured values for consent information', () => {
       let requests = buildRequest([enriched_overlay_request], buildBidderRequest('https://example.com/index.html', {gdprConsent: {gdprApplies: false}}));
       monetizeRequest = requests[0].data;
       expect(monetizeRequest).to.have.property('GDPRApplies')
@@ -417,35 +417,35 @@ describe('CatapultX adapter', function () {
       expect(monetizeRequest).to.not.have.property('USPString');
     });
 
-    it('should not include dnt if not applicable', function () {
+    it('should not include dnt if not applicable', () => {
       let requests = buildRequest([enriched_overlay_request], DEFAULT_BIDDER_REQUEST, false);
       expect(requests[0].data).to.not.have.property('dnt');
     });
 
-    it('should set dnt if applicable', function () {
+    it('should set dnt if applicable', () => {
       expect(monetizeRequest).to.have.property('dnt');
       expect(monetizeRequest.dnt).to.be.eql(1);
     });
   });
 
-  describe('interprets responses', function () {
-    it('should return empty array for no bid response in seatbid', function () {
+  describe('interprets responses', () => {
+    it('should return empty array for no bid response in seatbid', () => {
       let resp = spec.interpretResponse({body: no_seatbid_response});
       expect(resp).to.be.eql([]);
     });
 
-    it('should return empty array for missing seatbid array', function () {
+    it('should return empty array for missing seatbid array', () => {
       let resp = spec.interpretResponse({body: missing_seatbid_response});
       expect(resp).to.be.eql([]);
     });
 
-    it('should default currency to USD when cur is missing from response', function () {
+    it('should default currency to USD when cur is missing from response', () => {
       let resp = spec.interpretResponse({body: missing_cur_bid_response})[0];
       expect(resp).to.have.property('currency');
       expect(resp.currency).to.be.eql('USD');
     });
 
-    it('should interpret banner rtb response', function () {
+    it('should interpret banner rtb response', () => {
       let resp = spec.interpretResponse({body: bid_response})[0];
       expect(resp).to.have.property('requestId', 'testBid3');
       expect(resp).to.have.property('cpm', 2);
