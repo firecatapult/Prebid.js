@@ -92,7 +92,7 @@ export const videoSourceUpdated = (videoContainer) => {
  */
 export const getContext = (apiUrl, groupId, updated) => {
   if (videoSrc === null) {
-    throw new Error('CatapultX RTD module unable to complete because Video source url missing on provided container node');
+    return new Promise((resolve, reject) => reject(new Error('CatapultX RTD module unable to complete because Video source url missing on provided container node')));
   } else if (updated || (!updated && !extendedSiteContent)) {
     logMessage('Requesting new context data');
     return new Promise((resolve, reject) => {

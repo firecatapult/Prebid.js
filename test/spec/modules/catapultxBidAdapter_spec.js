@@ -282,7 +282,7 @@ describe('CatapultX adapter', () => {
   describe('ortb imp generation', () => {
     let ortbImps;
 
-    before(() => {
+    beforeEach(() => {
       let requests = buildRequest([no_qxdata_has_apiurl_bid, enriched_overlay_request]);
       ortbImps = requests[0].data.imp;
     });
@@ -358,7 +358,7 @@ describe('CatapultX adapter', () => {
   describe('monetize request generation', () => {
     let monetizeRequest;
 
-    before(() => {
+    beforeEach(() => {
       let requests = buildRequest([no_qxdata_has_apiurl_bid, enriched_overlay_request]);
       monetizeRequest = requests[0].data;
     });
