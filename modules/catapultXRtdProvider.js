@@ -4,9 +4,15 @@ import { logError, mergeDeep, logMessage } from '../src/utils.js';
 
 const DEFAULT_API_URL = 'https://demand.catapultx.com';
 
-export const qx = {
-  extendedSiteContent: null,
-  videoSrc: null
+let currentSiteContext = null;
+let videoSrc = null;
+
+export function setSrc(value) {
+  videoSrc = value
+}
+
+export function setContextData(value) {
+  currentSiteContext = value
 }
 
 /**
@@ -14,12 +20,15 @@ export const qx = {
  * @param {Object} config Module configuration
  * @returns {Boolean}
  */
-const init = (config) => {
+function init (config) {
   if (!config?.params?.groupId?.length > 0) {
     logError('Catapultx RTD module config does not contain valid groupId parameter. Config params: ' + JSON.stringify(config.params))
     return false;
   } else if (!config?.params?.videoContainer?.length > 0) {
     logError('Catapultx RTD module config does not contain valid videoContainer parameter. Config params: ' + JSON.stringify(config.params))
+    return false;
+  } else if (config?.params?.bidders?.length === 0) {
+    logError('Catapultx RTD module config contains empty bidder array, must either be omitted or have at least one bidder to continue');
     return false;
   }
   return true;
@@ -31,15 +40,14 @@ const init = (config) => {
  * @param {Function} callback Called on completion
  * @param {Object} moduleConfig
  */
-const getBidRequestData = (reqBidsConfig, callback, moduleConfig) => {
-  logMessage("quortex", reqBidsConfig);
+function getBidRequestData (reqBidsConfig, callback, moduleConfig) {
   if (reqBidsConfig?.adUnits?.length > 0) {
     const {apiUrl, videoContainer, bidders, groupId} = moduleConfig.params;
     const requestUrl = `${apiUrl || DEFAULT_API_URL}/api/v1/analyze/video/prebid`;
     getContext(requestUrl, groupId, videoSourceUpdated(videoContainer))
       .then(contextData => {
-        qx.extendedSiteContent = contextData;
-        addContextDataToRequests(qx.extendedSiteContent, reqBidsConfig, bidders)
+        setContextData(contextData)
+        addContextToRequests(reqBidsConfig, bidders)
         callback();
       })
       .catch((e) => {
@@ -57,10 +65,10 @@ const getBidRequestData = (reqBidsConfig, callback, moduleConfig) => {
  * @param {String} elem container name provided in module config, element to be searched for
  * @returns {String} url found in container src or null
  */
-export const locateVideoUrl = (elem) => {
+export function locateVideoUrl (elem) {
   logMessage('Looking for video source on node: ' + elem);
   let videoElement = document.querySelector(`#${elem},.${elem}`)?.querySelector('video');
-  let newVideoSource = (typeof videoElement !== 'undefined' && videoElement !== null) ? videoElement.src || videoElement.querySelector('source').src : null;
+  let newVideoSource = (typeof videoElement !== 'undefined' && videoElement !== null) ? videoElement?.src || videoElement.querySelector('source')?.src : null;
   if (newVideoSource?.length > 0) {
     logMessage(`Video source '${newVideoSource}' found on node ${elem}`);
     return newVideoSource;
@@ -75,32 +83,32 @@ export const locateVideoUrl = (elem) => {
  * @param {String} videoContainer container name provided in module config
  * @returns {Boolean}
  */
-export const videoSourceUpdated = (videoContainer) => {
+export function videoSourceUpdated (videoContainer) {
   const currentVideoSource = locateVideoUrl(videoContainer);
-  if (qx.videoSrc === currentVideoSource) {
-    qx.videoSrc = currentVideoSource;
+  if (videoSrc === currentVideoSource) {
+    setSrc(currentVideoSource);
     return false;
   } else {
-    qx.videoSrc = currentVideoSource;
+    setSrc(currentVideoSource);
     return true;
   }
 }
 
 /**
  * determines whether to send a request to context api and does so if necessary
- * @param {String} apiUrl catapultx context api url
+ * @param {String} requestUrl catapultx context api url
  * @param {String} groupId catapultx publisher groupId
  * @param {Boolean} updated boolean indicating whether or not the video source url has changed since last lookup in runtime
  * @returns {Promise} ortb Content object
  */
-export const getContext = (apiUrl, groupId, updated) => {
-  if (qx.videoSrc === null) {
+export function getContext (requestUrl, groupId, updated) {
+  if (videoSrc === null) {
     return new Promise((resolve, reject) => reject(new Error('CatapultX RTD module unable to complete because Video source url missing on provided container node')));
-  } else if (updated || (!updated && !qx.extendedSiteContent)) {
+  } else if (updated || (!updated && !currentSiteContext)) {
     logMessage('Requesting new context data');
     return new Promise((resolve, reject) => {
       const contextRequest = {
-        videoUrl: qx.videoSrc,
+        videoUrl: videoSrc,
         groupId: groupId
       }
       const options = {
@@ -112,28 +120,27 @@ export const getContext = (apiUrl, groupId, updated) => {
           resolve(result);
         },
         error(error) {
-          reject(error)
+          reject(new Error(error));
         }
       }
-      ajax(apiUrl, callbacks, JSON.stringify(contextRequest), options)
+      ajax(requestUrl, callbacks, JSON.stringify(contextRequest), options)
     })
   } else {
     logMessage('Adding Content object from existing context data with the same source');
-    return new Promise(resolve => resolve(qx.extendedSiteContent));
+    return new Promise(resolve => resolve(currentSiteContext));
   }
 }
 
 /**
  * Updates bidder configs with the response from catapultx context services
- * @param {Object} contextData Response from context endpoint
  * @param {Object} reqBidsConfig Bid request configuration object
  * @param {string[]} bidders Bidders specified in module's configuration
  */
-export const addContextDataToRequests = (contextData, reqBidsConfig, bidders) => {
-  if (contextData === null) {
-    logError('No context data recieved at this time for url: ' + qx.videoSrc);
+export function addContextToRequests (reqBidsConfig, bidders) {
+  if (currentSiteContext === null) {
+    logError('No context data recieved at this time for url: ' + videoSrc);
   } else {
-    const fragment = { site: {content: contextData} }
+    const fragment = { site: {content: currentSiteContext} }
     if (bidders) {
       bidders.forEach(bidder => mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {[bidder]: fragment}))
     } else {
