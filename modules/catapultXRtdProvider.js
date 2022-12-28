@@ -7,14 +7,6 @@ const DEFAULT_API_URL = 'https://demand.catapultx.com';
 let currentSiteContext = null;
 let videoSrc = null;
 
-export function setSrc(value) {
-  videoSrc = value
-}
-
-export function setContextData(value) {
-  currentSiteContext = value
-}
-
 /**
  * Init if module configuration is valid
  * @param {Object} config Module configuration
@@ -147,6 +139,14 @@ export function addContextToRequests (reqBidsConfig, bidders) {
       mergeDeep(reqBidsConfig.ortb2Fragments.global, fragment);
     }
   }
+}
+
+export function setSrc(value) {
+  videoSrc = value
+}
+
+export function setContextData(value) {
+  currentSiteContext = value
 }
 
 export const catapultxSubmodule = {
