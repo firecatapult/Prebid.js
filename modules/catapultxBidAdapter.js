@@ -25,21 +25,19 @@ export const spec = {
    * @return Array Info describing the request to the server.
    * @param {BidRequest[]} bidRequests
    * @param {BidderRequest} bidderRequest
-   * @returns {ServerRequest[]}
+   * @returns {ServerRequest}
    */
   buildRequests: function (bidRequests, bidderRequest) {
     const secure = bidderRequest?.refererInfo?.page.indexOf('https:') === 0 ? 1 : 0;
     const imps = bidRequests.map(bidRequest => buildImp(bidRequest, secure));
     const {qxData, apiUrl, groupId} = bidRequests[0].params;
     const request = buildMonetizeRequest(imps, bidderRequest, qxData, groupId);
-    return [
-      {
-        method: 'POST',
-        url: `${apiUrl || DEFAULT_API_URL}/api/v1/monetize/resources/prebid`,
-        data: JSON.stringify(request),
-        options: {withCredentials: false, contentType: 'application/json'}
-      }
-    ];
+    return {
+      method: 'POST',
+      url: `${apiUrl || DEFAULT_API_URL}/api/v1/monetize/resources/prebid`,
+      data: JSON.stringify(request),
+      options: {withCredentials: false, contentType: 'application/json'}
+    };
   },
 
   /**
@@ -70,10 +68,10 @@ export const spec = {
       prBid.width = rtbBid.w;
       prBid.height = rtbBid.h;
       prBid.ad = rtbBid.adm;
-      if (isArray(rtbBid.adomain)) {
+      if (isArray(rtbBid?.adomain)) {
         prBid.meta.advertiserDomains = rtbBid.adomain;
       }
-      if (isArray(rtbBid.cat)) {
+      if (isArray(rtbBid?.cat) && rtbBid?.cat?.length > 0) {
         prBid.meta.primaryCatId = rtbBid.cat[0];
         if (rtbBid.cat.length > 1) {
           prBid.meta.secondaryCatIds = rtbBid.cat.slice(1);

@@ -5,110 +5,35 @@ import {BANNER} from 'src/mediaTypes';
 import {config} from 'src/config';
 
 describe('CatapultX adapter', () => {
+  let bidRequest;
+  let bidResponse;
+
   const sample_qxData = {
       groupId: 'internal',
       testKey: 'Key_1'
-    },
-    no_params_bid = {
-      bidder: 'catapultx',
-      bidId: 'testBid1',
-      bidderRequestId: 'testRequest1',
-      auctionId: 'eb66abdc-bdb4-4dfd-a5af-9a9ec70dc98a'
-    },
-    no_groupId_bid = {
-      bidder: 'catapultx',
-      params: {},
-      adUnitCode: 'adUnitTestCode',
-      bidId: 'testBid1',
-      bidderRequestId: 'testRequest1',
-      auctionId: 'eb66abdc-bdb4-4dfd-a5af-9a9ec70dc98a',
-      mediaTypes: {
-        banner: {
-          sizes: [[300, 250]]
+    }
+
+  const ortb2Data = {
+      site: {
+        content: {
+          id: '123456',
+          episode: 15,
+          title: 'test episode',
+          series: 'test show',
+          season: '1',
+          url: 'https://example.com/file.mp4'
         }
       }
-    },
-    empty_groupId_bid = {
+    }
+
+  const exampleUrl = 'https://example.com/index.html';
+
+  beforeEach(() => {
+    bidRequest = {
       bidder: 'catapultx',
-      params: {groupId: ''},
+      params: {groupId: 'internal', qxData: sample_qxData, apiUrl: 'https://example.com'},
       adUnitCode: 'adUnitTestCode',
-      bidId: 'testBid1',
-      bidderRequestId: 'testRequest1',
-      auctionId: 'eb66abdc-bdb4-4dfd-a5af-9a9ec70dc98a',
-      mediaTypes: {
-        banner: {
-          sizes: [[300, 250]]
-        }
-      }
-    },
-    native_bid = {
-      bidder: 'catapultx',
-      params: {groupId: 'internal'},
-      adUnitCode: 'adUnitTestCode',
-      bidId: 'testBid1',
-      bidderRequestId: 'testRequest1',
-      auctionId: 'eb66abdc-bdb4-4dfd-a5af-9a9ec70dc98a',
-      mediaTypes: {
-        native: {}
-      }
-    },
-    no_optional_params_valid_bid = {
-      bidder: 'catapultx',
-      params: {groupId: 'internal'},
-      adUnitCode: 'adUnitTestCode',
-      bidId: 'testBid1',
-      bidderRequestId: 'testRequest1',
-      auctionId: 'eb66abdc-bdb4-4dfd-a5af-9a9ec70dc98a',
-      mediaTypes: {
-        banner: {
-          sizes: [[300, 250]]
-        }
-      }
-    },
-    no_qxdata_has_apiurl_bid = {
-      bidder: 'catapultx',
-      params: {groupId: 'internal', apiUrl: 'example.com'},
-      adUnitCode: 'adUnitTestCode',
-      bidId: 'testBid1',
-      bidderRequestId: 'testRequest1',
-      auctionId: 'eb66abdc-bdb4-4dfd-a5af-9a9ec70dc98a',
-      mediaTypes: {
-        banner: {
-          sizes: [[300, 250]]
-        }
-      }
-    },
-    no_apiUrl_has_qxData_bid = {
-      bidder: 'catapultx',
-      params: {groupId: 'internal', qxData: {}},
-      adUnitCode: 'adUnitTestCode',
-      bidId: 'testBid2',
-      bidderRequestId: 'testRequest1',
-      auctionId: 'eb66abdc-bdb4-4dfd-a5af-9a9ec70dc98a',
-      mediaTypes: {
-        banner: {
-          sizes: [[300, 250]]
-        }
-      }
-    },
-    non_enriched_bid_multiple_sizes = {
-      bidder: 'catapultx',
-      params: {groupId: 'internal'},
-      adUnitCode: 'adUnitTestCode',
-      bidId: 'testBid2',
-      bidderRequestId: 'testRequest1',
-      auctionId: 'eb66abdc-bdb4-4dfd-a5af-9a9ec70dc98a',
-      mediaTypes: {
-        banner: {
-          sizes: [[300, 250], [900, 78]]
-        }
-      }
-    },
-    enriched_overlay_request = {
-      bidder: 'catapultx',
-      params: {groupId: 'internal', qxData: sample_qxData, apiUrl: 'example.com'},
-      adUnitCode: 'adUnitTestCode',
-      bidId: 'testBid3',
+      bidId: 'bidRequestId',
       bidderRequestId: 'testRequest1',
       ortb2Imp: {
         ext: {
@@ -126,232 +51,198 @@ describe('CatapultX adapter', () => {
           sizes: [[300, 250]]
         }
       }
-    },
-    no_seatbid_response = {
-      'id': '26afda50-b43b-49c5-8b27-a25149167283',
-      'seatbid': [],
-      'bidid': 'bidid',
-      'cur': 'USD',
-      'nbr': 0
-    },
-    missing_seatbid_response = {
-      'id': '26afda50-b43b-49c5-8b27-a25149167283',
-      'bidid': 'bidid',
-      'cur': 'USD',
-      'nbr': 0
-    },
-    missing_cur_bid_response = {
-      'id': '26afda50-b43b-49c5-8b27-a25149167283',
-      'seatbid': [
+    };
+    bidResponse = {
+      id: '26afda50-b43b-49c5-8b27-a25149167283',
+      seatbid: [
         {
-          'bid': [
+          bid: [
             {
-              'id': 'id123',
-              'impid': 'testBid3',
-              'price': 2,
-              'adid': '80152',
-              'nurl': 'https://demand.example.com/win?i=id123',
-              'adm': '<!-- cx bidadapter test -->',
-              'adomain': [
+              id: 'id123',
+              impid: 'testBid3',
+              price: 2,
+              adid: '80152',
+              nurl: 'https://demand.example.com/win?i=id123',
+              adm: '<!-- cx bidadapter test -->',
+              adomain: [
                 'example.com'
               ],
-              'iurl': 'https://demand.example.com/yetfs.png',
-              'cid': '1234',
-              'crid': 'crid123',
-              'cat': [
+              iurl: 'https://demand.example.com/yetfs.png',
+              cid: '1234',
+              crid: 'crid123',
+              cat: [
                 'IAB1',
                 'IAB2',
                 'IAB123'
               ],
-              'w': 728,
-              'h': 90
+              w: 728,
+              h: 90
             }
           ],
-          'seat': '123555'
+          seat: '123555'
         }
       ],
-      'bidid': 'bidid',
-      'nbr': 0
-    },
-    bid_response = {
-      'id': '26afda50-b43b-49c5-8b27-a25149167283',
-      'seatbid': [
-        {
-          'bid': [
-            {
-              'id': 'id123',
-              'impid': 'testBid3',
-              'price': 2,
-              'adid': '80152',
-              'nurl': 'https://demand.example.com/win?i=id123',
-              'adm': '<!-- cx bidadapter test -->',
-              'adomain': [
-                'example.com'
-              ],
-              'iurl': 'https://demand.example.com/yetfs.png',
-              'cid': '1234',
-              'crid': 'crid123',
-              'cat': [
-                'IAB1',
-                'IAB2',
-                'IAB123'
-              ],
-              'w': 728,
-              'h': 90
-            }
-          ],
-          'seat': '123555'
-        }
-      ],
-      'bidid': 'bidid',
-      'cur': 'testCur',
-      'nbr': 0
+      bidid: 'bidid',
+      cur: 'testCur',
+      nbr: 0
     }
-
-  let sandbox;
-
-  beforeEach(() => {
-    sandbox = sinon.createSandbox();
   });
 
   afterEach(() => {
-    sandbox.restore();
     config.resetConfig();
   });
 
-  function buildBidderRequest(url = 'https://example.com/index.html', params = {}) {
+  const buildBidderRequest = (url = exampleUrl, params = {}) => {
     return Object.assign({}, params, {refererInfo: {page: url, reachedTop: true}, timeout: 3000, bidderCode: 'catapultx'});
   }
-  const DEFAULT_BIDDER_REQUEST = buildBidderRequest();
 
-  function buildRequest(bidRequests, bidderRequest = DEFAULT_BIDDER_REQUEST, dnt = true) {
-    let dntmock = sandbox.stub(utils, 'getDNT').callsFake(() => dnt);
+  const buildRequest = (bidRequests, bidderRequest = buildBidderRequest(), dnt = true) => {
+    let dntmock = sinon.stub(utils, 'getDNT').callsFake(() => dnt);
     bidderRequest.bids = bidRequests;
-    let requests = spec.buildRequests(bidRequests, bidderRequest);
+    let request = spec.buildRequests(bidRequests, bidderRequest);
     dntmock.restore();
-    return requests
+    return request;
+  }
+
+  const data = (request) => {
+    return JSON.parse(request.data);
   }
 
   describe('bid request validation', () => {
     it('fails validation for bid with no params object', () => {
-      expect(spec.isBidRequestValid(no_params_bid)).to.be.equal(false);
+      delete bidRequest.params;
+      expect(spec.isBidRequestValid(bidRequest)).to.be.equal(false);
     });
 
     it('fails validation for bid with no groupId', () => {
-      expect(spec.isBidRequestValid(no_groupId_bid)).to.be.equal(false);
+      delete bidRequest.params.groupId;
+      expect(spec.isBidRequestValid(bidRequest)).to.be.equal(false);
     });
 
     it('fails validation for bid wth empty groupId', () => {
-      expect(spec.isBidRequestValid(empty_groupId_bid)).to.be.equal(false);
+      bidRequest.params.groupId = '';
+      expect(spec.isBidRequestValid(bidRequest)).to.be.equal(false);
     });
 
     it('will not validate non banner bids', () => {
-      expect(spec.isBidRequestValid(native_bid)).to.be.equal(false);
+      bidRequest.mediaTypes = { native: {} };
+      expect(spec.isBidRequestValid(bidRequest)).to.be.equal(false);
     });
 
     it('will validate complete banner requests with no optional parameters', () => {
-      expect(spec.isBidRequestValid(no_optional_params_valid_bid)).to.be.equal(true);
+      delete bidRequest.params.apiUrl;
+      delete bidRequest.params.qxData;
+      expect(spec.isBidRequestValid(bidRequest)).to.be.equal(true);
     });
-
-    it('will validate requests that use optional parameters', () => {
-      expect(spec.isBidRequestValid(no_qxdata_has_apiurl_bid)).to.be.equal(true);
-      expect(spec.isBidRequestValid(no_apiUrl_has_qxData_bid)).to.be.equal(true);
-      expect(spec.isBidRequestValid(enriched_overlay_request)).to.be.equal(true);
-    })
   });
 
   describe('interpreting group id and apiUrl', () => {
+    const endpointPath = '/api/v1/monetize/resources/prebid'
+    const defaultApiHost = 'https://demand.catapultx.com';
+
     it('should default to default apiUrl', () => {
-      let requests = buildRequest([no_apiUrl_has_qxData_bid]);
-      expect(requests[0].url).to.have.string('https://demand.catapultx.com');
+      delete bidRequest.params.apiUrl;
+      let request = buildRequest([bidRequest]);
+      expect(request.url).to.be.eql(defaultApiHost + endpointPath);
     });
 
     it('should set apiUrl if sent in params', () => {
-      let requests = buildRequest([enriched_overlay_request]);
-      expect(requests[0].url).to.have.string('example.com');
-      expect(requests[0].url.split('/')[0]).to.be.eql('example.com');
+      let request = buildRequest([bidRequest]);
+      expect(request.url).to.be.eql(bidRequest.params.apiUrl + endpointPath);
     });
 
     it('should set groupId from params', () => {
-      let requests = buildRequest([enriched_overlay_request]);
-      expect(requests[0].url).to.have.string('internal');
-      expect(requests[0].url.split('/').pop()).to.be.eql('internal');
+      let request = buildRequest([bidRequest]);
+      expect(data(request).groupId).to.be.eql(bidRequest.params.groupId);
     });
   });
 
   describe('ortb imp generation', () => {
-    let ortbImps;
+    let ortbImp;
 
     beforeEach(() => {
-      let requests = buildRequest([no_qxdata_has_apiurl_bid, enriched_overlay_request]);
-      ortbImps = requests[0].data.imp;
+      ortbImp = data(buildRequest([bidRequest])).imp[0];
     });
 
     it('should have banner object', () => {
-      expect(ortbImps[0]).to.have.property('banner');
+      expect(ortbImp).to.have.property('banner');
     });
 
-    it('should have corresponding bidId', () => {
-      expect(ortbImps[0]).to.have.property('id');
-      expect(ortbImps[0].id).to.be.eql('testBid1');
-      expect(ortbImps[1]).to.have.property('id');
-      expect(ortbImps[1].id).to.be.eql('testBid3');
+    it('should create multiple imps for multiple bids', () => {
+      const bidRequest2 = Object.assign({}, bidRequest);
+      bidRequest2.bidId = 'bidRequest2Id'
+      const imps = data(buildRequest([bidRequest, bidRequest2])).imp;
+      expect(imps.length).to.eql(2);
+      expect(imps[0]).to.have.property('id');
+      expect(imps[0].id).to.eql('bidRequestId');
+      expect(imps[1]).to.have.property('id');
+      expect(imps[1].id).to.eql('bidRequest2Id');
     });
 
     it('should have format object', () => {
-      expect(ortbImps[0].banner).to.have.property('format');
-      expect(ortbImps[0].banner.format).to.be.eql([{w: 300, h: 250}]);
+      expect(ortbImp.banner).to.have.property('format');
+      expect(ortbImp.banner.format).to.be.eql([{w: 300, h: 250}]);
     });
 
     it('should evaluate and send secure value', () => {
-      expect(ortbImps[0]).to.have.property('secure', 1);
+      expect(ortbImp).to.have.property('secure', 1);
     });
 
     it('should properly identify non https and send 0 for secure', () => {
-      let httpRequests = buildRequest([enriched_overlay_request], buildBidderRequest('http://example.com/index.html'));
-      let notSecure = httpRequests[0].data.imp[0];
-      expect(notSecure).to.have.property('secure', 0);
+      const nonSecureUrl = 'http://example.com/index.html';
+      const request = buildRequest([bidRequest], buildBidderRequest(nonSecureUrl));
+      const notSecureImp = data(request).imp[0];
+      expect(notSecureImp).to.have.property('secure', 0);
     });
 
     it('should have tagid', () => {
-      expect(ortbImps[0]).to.have.property('tagid', 'adUnitTestCode');
+      expect(ortbImp).to.have.property('tagid', 'adUnitTestCode');
     });
 
-    it('should default bidfloor 0 if not configured', function() {
-      expect(ortbImps[0]).to.have.property('bidfloor', 0);
+    it('should default bidfloor 0 if not configured', () => {
+      expect(ortbImp).to.have.property('bidfloor', 0);
     });
 
-    it('should set bidfloor if configured', function() {
-      let bid = Object.assign({}, enriched_overlay_request);
-      bid.getFloor = function() {
+    it('should default bidfloor 0 if getFloor returns invalid response', () => {
+      bidRequest.getFloor = () => {
+        return "string";
+      };
+      const imp = data(buildRequest([bidRequest])).imp[0];
+      expect(imp).to.have.property('bidfloor', 0);
+    });
+
+    it('should set bidfloor if configured', () => {
+      bidRequest.getFloor = () => {
         return {
           currency: 'USD',
           floor: 0.145
         }
       };
-      let requests = buildRequest([bid]);
-      expect(requests[0].data.imp[0]).to.have.property('bidfloor', 0.145);
+      const imp = data(buildRequest([bidRequest])).imp[0];
+      expect(imp).to.have.property('bidfloor', 0.145);
     });
 
-    it('should set bidfloor if configured on bid with multiple sizes', function() {
-      let bid = Object.assign({}, non_enriched_bid_multiple_sizes);
-      bid.getFloor = function() {
+    it('should set bidfloor if configured on bid with multiple sizes', () => {
+      bidRequest.mediaTypes.banner.sizes = [[300, 250], [900, 78]]
+      bidRequest.getFloor = () => {
         return {
           currency: 'USD',
           floor: 0.145
         }
       };
-      let requests = buildRequest([bid]);
-      expect(requests[0].data.imp[0]).to.have.property('bidfloor', 0.145);
-    });
-
-    it('should not add ext object with no ortb2imp injection', () => {
-      expect(ortbImps[0]).to.not.have.property('ext');
+      const imp = data(buildRequest([bidRequest])).imp[0];
+      expect(imp).to.have.property('bidfloor', 0.145);
     });
 
     it('should map object from ortb2imp injection', () => {
-      expect(ortbImps[1]).to.have.property('ext');
-      expect(ortbImps[1].ext).to.be.eql(enriched_overlay_request.ortb2Imp.ext);
+      expect(ortbImp).to.have.property('ext');
+      expect(ortbImp.ext).to.be.eql(bidRequest.ortb2Imp.ext);
+    });
+
+    it('should not add ext object with no ortb2imp available', () => {
+      delete bidRequest.ortb2Imp;
+      ortbImp = data(buildRequest([bidRequest])).imp[0];
+      expect(ortbImp).to.not.have.property('ext');
     });
   });
 
@@ -359,8 +250,7 @@ describe('CatapultX adapter', () => {
     let monetizeRequest;
 
     beforeEach(() => {
-      let requests = buildRequest([no_qxdata_has_apiurl_bid, enriched_overlay_request]);
-      monetizeRequest = requests[0].data;
+      monetizeRequest = data(buildRequest([bidRequest]));
     });
 
     it('should have tmax', () => {
@@ -368,13 +258,14 @@ describe('CatapultX adapter', () => {
     });
 
     it('will not add qxData object if it does not exist', () => {
+      delete bidRequest.params.qxData;
+      monetizeRequest = data(buildRequest([bidRequest]));
       expect(monetizeRequest).to.not.have.property('qxData');
     });
 
     it('will send qxData object when applicable', () => {
-      let overlay_mock = buildRequest([enriched_overlay_request]);
-      const enrichedRequest = overlay_mock[0].data;
-      expect(enrichedRequest.qxData).to.be.eql(sample_qxData);
+      monetizeRequest = data(buildRequest([bidRequest]));
+      expect(monetizeRequest.qxData).to.be.eql(sample_qxData);
     });
 
     it('will not add consent information if it does not exist', () => {
@@ -383,11 +274,19 @@ describe('CatapultX adapter', () => {
       expect(monetizeRequest).to.not.have.property('USPString');
     });
 
+    it('will not add gdprApplies if unavailable', () => {
+      const request = buildRequest([bidRequest],
+        buildBidderRequest(exampleUrl,
+          {gdprConsent: {}, uspConsent: '1YNN'}));
+      monetizeRequest = data(request);
+      expect(monetizeRequest).to.not.have.property('GDPRApplies');
+    })
+
     it('should contain gdpr-related information if consent is configured', () => {
-      let requests = buildRequest([enriched_overlay_request],
-        buildBidderRequest('https://example.com/index.html',
+      const request = buildRequest([bidRequest],
+        buildBidderRequest(exampleUrl,
           {gdprConsent: {gdprApplies: true, consentString: 'tcStringValue', vendorData: {}}, uspConsent: '1YNN'}));
-      monetizeRequest = requests[0].data;
+      monetizeRequest = data(request);
       expect(monetizeRequest).to.have.property('GDPRApplies');
       expect(monetizeRequest.GDPRApplies).to.be.eql(1);
       expect(monetizeRequest).to.have.property('TCString');
@@ -402,24 +301,34 @@ describe('CatapultX adapter', () => {
 
     it('should contain coppa if configured', () => {
       config.setConfig({coppa: true});
-      let requests = buildRequest([no_qxdata_has_apiurl_bid]);
-      monetizeRequest = requests[0].data;
+      const request = buildRequest([bidRequest]);
+      monetizeRequest = data(request);
       expect(monetizeRequest).to.have.property('coppa');
       expect(monetizeRequest.coppa).to.be.eql(1);
     });
 
     it('should only send configured values for consent information', () => {
-      let requests = buildRequest([enriched_overlay_request], buildBidderRequest('https://example.com/index.html', {gdprConsent: {gdprApplies: false}}));
-      monetizeRequest = requests[0].data;
+      const request = buildRequest([bidRequest], buildBidderRequest(exampleUrl, {gdprConsent: {gdprApplies: false}}));
+      monetizeRequest = data(request);
       expect(monetizeRequest).to.have.property('GDPRApplies')
       expect(monetizeRequest.GDPRApplies).to.be.eql(0);
       expect(monetizeRequest).to.not.have.property('TCString');
       expect(monetizeRequest).to.not.have.property('USPString');
     });
 
+    it('should include site.content if available', () => {
+      const request = buildRequest([bidRequest], buildBidderRequest(exampleUrl, { ortb2: ortb2Data }));
+      monetizeRequest = data(request);
+      expect(monetizeRequest.content).to.be.eql(ortb2Data.site.content);
+    })
+
+    it('should not include site.content if not available', () => {
+      expect(monetizeRequest).to.not.have.property('content');
+    })
+
     it('should not include dnt if not applicable', () => {
-      let requests = buildRequest([enriched_overlay_request], DEFAULT_BIDDER_REQUEST, false);
-      expect(requests[0].data).to.not.have.property('dnt');
+      const request = buildRequest([bidRequest], buildBidderRequest(), false);
+      expect(data(request)).to.not.have.property('dnt');
     });
 
     it('should set dnt if applicable', () => {
@@ -430,23 +339,44 @@ describe('CatapultX adapter', () => {
 
   describe('interprets responses', () => {
     it('should return empty array for no bid response in seatbid', () => {
-      let resp = spec.interpretResponse({body: no_seatbid_response});
+      bidResponse.seatbid = []
+      const resp = spec.interpretResponse({body: bidResponse});
       expect(resp).to.be.eql([]);
     });
 
     it('should return empty array for missing seatbid array', () => {
-      let resp = spec.interpretResponse({body: missing_seatbid_response});
+      delete bidResponse.seatbid 
+      const resp = spec.interpretResponse({body: bidResponse});
       expect(resp).to.be.eql([]);
     });
 
     it('should default currency to USD when cur is missing from response', () => {
-      let resp = spec.interpretResponse({body: missing_cur_bid_response})[0];
+      delete bidResponse.cur;
+      const resp = spec.interpretResponse({body: bidResponse})[0];
       expect(resp).to.have.property('currency');
       expect(resp.currency).to.be.eql('USD');
     });
 
+    it('should not add invalid adomain', () => {
+      bidResponse.seatbid[0].bid[0].adomain = "string"
+      const resp = spec.interpretResponse({body: bidResponse})[0];
+      expect(resp?.meta?.advertiserDomains).to.be.undefined;
+    });
+
+    it('should not add empty cat array', () => {
+      bidResponse.seatbid[0].bid[0].cat = []
+      const resp = spec.interpretResponse({body: bidResponse})[0];
+      expect(resp?.meta?.primaryCatId).to.be.undefined;
+    });
+
+    it('should not add secondary category if array only contains one', () => {
+      bidResponse.seatbid[0].bid[0].cat = ['IAB1'];
+      const resp = spec.interpretResponse({body: bidResponse})[0];
+      expect(resp?.meta?.secondaryCatIds).to.be.undefined;
+    })
+
     it('should interpret banner rtb response', () => {
-      let resp = spec.interpretResponse({body: bid_response})[0];
+      const resp = spec.interpretResponse({body: bidResponse})[0];
       expect(resp).to.have.property('requestId', 'testBid3');
       expect(resp).to.have.property('cpm', 2);
       expect(resp).to.have.property('width', 728);
