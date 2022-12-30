@@ -9,22 +9,22 @@ describe('CatapultX adapter', () => {
   let bidResponse;
 
   const sample_qxData = {
-      groupId: 'internal',
-      testKey: 'Key_1'
-    }
+    groupId: 'internal',
+    testKey: 'Key_1'
+  }
 
   const ortb2Data = {
-      site: {
-        content: {
-          id: '123456',
-          episode: 15,
-          title: 'test episode',
-          series: 'test show',
-          season: '1',
-          url: 'https://example.com/file.mp4'
-        }
+    site: {
+      content: {
+        id: '123456',
+        episode: 15,
+        title: 'test episode',
+        series: 'test show',
+        season: '1',
+        url: 'https://example.com/file.mp4'
       }
     }
+  }
 
   const exampleUrl = 'https://example.com/index.html';
 
@@ -205,7 +205,7 @@ describe('CatapultX adapter', () => {
 
     it('should default bidfloor 0 if getFloor returns invalid response', () => {
       bidRequest.getFloor = () => {
-        return "string";
+        return 'string';
       };
       const imp = data(buildRequest([bidRequest])).imp[0];
       expect(imp).to.have.property('bidfloor', 0);
@@ -345,7 +345,7 @@ describe('CatapultX adapter', () => {
     });
 
     it('should return empty array for missing seatbid array', () => {
-      delete bidResponse.seatbid 
+      delete bidResponse.seatbid
       const resp = spec.interpretResponse({body: bidResponse});
       expect(resp).to.be.eql([]);
     });
@@ -358,7 +358,7 @@ describe('CatapultX adapter', () => {
     });
 
     it('should not add invalid adomain', () => {
-      bidResponse.seatbid[0].bid[0].adomain = "string"
+      bidResponse.seatbid[0].bid[0].adomain = 'string'
       const resp = spec.interpretResponse({body: bidResponse})[0];
       expect(resp?.meta?.advertiserDomains).to.be.undefined;
     });
