@@ -18,29 +18,26 @@ export const spec = {
   isBidRequestValid: function (bidRequest) {
     return 'params' in bidRequest &&
       'groupId' in bidRequest.params &&
-      bidRequest.params.groupId != '' && 'banner' in bidRequest.mediaTypes;
+      bidRequest.params?.groupId?.length > 0 && 'banner' in bidRequest.mediaTypes;
   },
   /**
    * build a valid request to be handled by catapultx demand api
    * @return Array Info describing the request to the server.
    * @param {BidRequest[]} bidRequests
    * @param {BidderRequest} bidderRequest
-   * @returns {ServerRequest[]}
+   * @returns {ServerRequest}
    */
   buildRequests: function (bidRequests, bidderRequest) {
-    let secure = bidderRequest?.refererInfo?.page.indexOf('https:') === 0 ? 1 : 0;
-    let imps = bidRequests.map(bidRequest => buildImp(bidRequest, secure));
-    let requests = [];
-    let qxData = bidRequests[0].params?.qxData;
-    let apiUrl = bidRequests[0].params?.apiUrl || DEFAULT_API_URL;
-    const request = buildMonetizeRequest(imps, bidderRequest, qxData);
-    requests.push({
+    const secure = bidderRequest?.refererInfo?.page.indexOf('https:') === 0 ? 1 : 0;
+    const imps = bidRequests.map(bidRequest => buildImp(bidRequest, secure));
+    const {qxData, apiUrl, groupId} = bidRequests[0].params;
+    const request = buildMonetizeRequest(imps, bidderRequest, qxData, groupId);
+    return {
       method: 'POST',
-      url: `${apiUrl}/api/v1/monetize/resources/prebid/${bidRequests[0].params.groupId}`,
+      url: `${apiUrl || DEFAULT_API_URL}/api/v1/monetize/resources/prebid`,
       data: JSON.stringify(request),
       options: {withCredentials: false, contentType: 'application/json'}
-    });
-    return requests;
+    };
   },
 
   /**
@@ -71,10 +68,10 @@ export const spec = {
       prBid.width = rtbBid.w;
       prBid.height = rtbBid.h;
       prBid.ad = rtbBid.adm;
-      if (isArray(rtbBid.adomain)) {
+      if (isArray(rtbBid?.adomain)) {
         prBid.meta.advertiserDomains = rtbBid.adomain;
       }
-      if (isArray(rtbBid.cat)) {
+      if (isArray(rtbBid?.cat) && rtbBid?.cat?.length > 0) {
         prBid.meta.primaryCatId = rtbBid.cat[0];
         if (rtbBid.cat.length > 1) {
           prBid.meta.secondaryCatIds = rtbBid.cat.slice(1);
@@ -92,15 +89,15 @@ registerBidder(spec);
  * builds PrebidRequest object for catapultx monetize/prebid endpoint
  * @returns {String}
  */
-function buildMonetizeRequest(imps, bidderRequest, qxData) {
+function buildMonetizeRequest(imps, bidderRequest, qxData, groupId) {
   let {gdprConsent, auctionId, timeout, uspConsent, ortb2} = bidderRequest;
   let coppa = config.getConfig('coppa');
   let req = {
-    'id': auctionId,
-    'imp': imps,
-    'tmax': timeout,
-    'coppa': 0,
-    'content': null
+    id: auctionId,
+    imp: imps,
+    tmax: timeout,
+    coppa: 0,
+    groupId: groupId
   };
   if (getDNT()) {
     req.dnt = 1;
@@ -122,7 +119,7 @@ function buildMonetizeRequest(imps, bidderRequest, qxData) {
   if (uspConsent) {
     req.USPString = uspConsent;
   }
-  //this will need to be santized on either end
+  // this will need to be santized on either end
   if (ortb2?.site?.content) {
     req.content = ortb2?.site?.content
   }

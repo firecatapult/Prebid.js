@@ -26,8 +26,6 @@ This supports: GDPR ConsentManagement module, US Privacy ConsentManagement modul
             bidder: "catapultx",
             params: {
                 groupId: 'ABC123', //required parameter
-                qxData: {}, //internal for enriched bidding from catapultx onstream integration
-                apiUrl: 'cpm.api.com', //internal for testing only
             }
         }]
     }];
