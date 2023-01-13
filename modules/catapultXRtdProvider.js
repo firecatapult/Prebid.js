@@ -1,11 +1,14 @@
 import { submodule } from '../src/hook.js';
 import { ajax } from '../src/ajax.js';
 import { logError, mergeDeep, logMessage } from '../src/utils.js';
+import { loadExternalScript } from '../src/adloader.js';
 
 const DEFAULT_API_URL = 'https://demand.catapultx.com';
+const DEFAULT_TAG_URL = "http://localhost:3001/prebid/cx-prebid-module-external"
 
 let currentSiteContext = null;
 let videoSrc = null;
+let externalVideoSrc = null;
 
 /**
  * Init if module configuration is valid
@@ -23,6 +26,14 @@ function init (config) {
     logError('Catapultx RTD module config contains empty bidder array, must either be omitted or have at least one bidder to continue');
     return false;
   }
+  addEventListener('update-value', (e) => {
+    externalVideoSrc = e.detail.videoSrc;
+    logMessage("Qortex companion script has updated the video source", externalVideoSrc);
+  })
+  loadExternalScript(DEFAULT_TAG_URL, 'catapultx', () => {
+    logMessage("Qortex companion script has been loaded")
+    dispatchEvent(new CustomEvent('test-init', {detail: {location: config.params.videoContainer}}))
+  });
   return true;
 }
 
@@ -76,6 +87,7 @@ export function locateVideoUrl (elem) {
  * @returns {Boolean}
  */
 export function videoSourceUpdated (videoContainer) {
+  logMessage("log video source message shiloh")
   const currentVideoSource = locateVideoUrl(videoContainer);
   if (videoSrc === currentVideoSource) {
     setSrc(currentVideoSource);
