@@ -1,14 +1,14 @@
 # Overview
 
 ```
-Module Name: CatapultX Bidder Adapter
+Module Name: qortex Bidder Adapter
 Module Type: Bidder Adapter
-Maintainer: mannese@catapultx.com
+Maintainer: mannese@qortex.ai
 ```
 
 # Description
 
-Module that connects to CatapultX monetize api
+Module that connects to qortex monetize api
 Currently supports Banner format
 This supports: GDPR ConsentManagement module, US Privacy ConsentManagement module, DNT, coppa
 
@@ -23,10 +23,10 @@ This supports: GDPR ConsentManagement module, US Privacy ConsentManagement modul
             }
         },
         bids: [{
-            bidder: "catapultx",
+            bidder: "qortex",
             params: {
                 groupId: 'ABC123', //required parameter
-                qxData: {}, //internal for enriched bidding from catapultx onstream integration
+                qxData: {}, //internal for enriched bidding from qortex onstream integration
                 apiUrl: 'cpm.api.com', //internal for testing only
             }
         }]

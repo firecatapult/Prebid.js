@@ -2,7 +2,7 @@ import { submodule } from '../src/hook.js';
 import { ajax } from '../src/ajax.js';
 import { logError, mergeDeep, logMessage } from '../src/utils.js';
 
-const DEFAULT_API_URL = 'https://demand.catapultx.com';
+const DEFAULT_API_URL = 'https://demand.qortex.ai';
 
 let currentSiteContext = null;
 let videoSrc = null;
@@ -14,13 +14,13 @@ let videoSrc = null;
  */
 function init (config) {
   if (!config?.params?.groupId?.length > 0) {
-    logError('Catapultx RTD module config does not contain valid groupId parameter. Config params: ' + JSON.stringify(config.params))
+    logError('qortex RTD module config does not contain valid groupId parameter. Config params: ' + JSON.stringify(config.params))
     return false;
   } else if (!config?.params?.videoContainer?.length > 0) {
-    logError('Catapultx RTD module config does not contain valid videoContainer parameter. Config params: ' + JSON.stringify(config.params))
+    logError('qortex RTD module config does not contain valid videoContainer parameter. Config params: ' + JSON.stringify(config.params))
     return false;
   } else if (config?.params?.bidders?.length === 0) {
-    logError('Catapultx RTD module config contains empty bidder array, must either be omitted or have at least one bidder to continue');
+    logError('qortex RTD module config contains empty bidder array, must either be omitted or have at least one bidder to continue');
     return false;
   }
   return true;
@@ -88,14 +88,14 @@ export function videoSourceUpdated (videoContainer) {
 
 /**
  * determines whether to send a request to context api and does so if necessary
- * @param {String} requestUrl catapultx context api url
- * @param {String} groupId catapultx publisher groupId
+ * @param {String} requestUrl qortex context api url
+ * @param {String} groupId qortex publisher groupId
  * @param {Boolean} updated boolean indicating whether or not the video source url has changed since last lookup in runtime
  * @returns {Promise} ortb Content object
  */
 export function getContext (requestUrl, groupId, updated) {
   if (videoSrc === null) {
-    return new Promise((resolve, reject) => reject(new Error('CatapultX RTD module unable to complete because Video source url missing on provided container node')));
+    return new Promise((resolve, reject) => reject(new Error('qortex RTD module unable to complete because Video source url missing on provided container node')));
   } else if (updated || (!updated && !currentSiteContext)) {
     logMessage('Requesting new context data');
     return new Promise((resolve, reject) => {
@@ -124,7 +124,7 @@ export function getContext (requestUrl, groupId, updated) {
 }
 
 /**
- * Updates bidder configs with the response from catapultx context services
+ * Updates bidder configs with the response from qortex context services
  * @param {Object} reqBidsConfig Bid request configuration object
  * @param {string[]} bidders Bidders specified in module's configuration
  */
@@ -149,10 +149,10 @@ export function setContextData(value) {
   currentSiteContext = value
 }
 
-export const catapultxSubmodule = {
-  name: 'catapultx',
+export const qortexSubmodule = {
+  name: 'qortex',
   init,
   getBidRequestData
 }
 
-submodule('realTimeData', catapultxSubmodule);
+submodule('realTimeData', qortexSubmodule);

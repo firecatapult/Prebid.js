@@ -1,16 +1,16 @@
 import * as utils from 'src/utils';
 import * as ajax from 'src/ajax.js';
 import {
-  catapultxSubmodule as module,
+  qortexSubmodule as module,
   locateVideoUrl,
   videoSourceUpdated,
   getContext,
   addContextToRequests,
   setSrc,
   setContextData
-} from '../../../modules/catapultXRtdProvider';
+} from '../../../modules/qortexRtdProvider';
 
-describe('catapultxRtdProvider', () => {
+describe('qortexRtdProvider', () => {
   let logErrorSpy;
   let mockServer;
   let ajaxSpy;
@@ -18,9 +18,9 @@ describe('catapultxRtdProvider', () => {
 
   const videoSrc1 = 'http://hello.test.com/example.mp4';
   const videoSrc2 = 'http://test.two.com/second.mp4';
-  const defaultApiHost = 'https://demand.catapultx.com';
+  const defaultApiHost = 'https://demand.qortex.ai';
   const containerName = 'my-video-container';
-  const validBidderArray = ['catapultx', 'test'];
+  const validBidderArray = ['qortex', 'test'];
 
   const responseHeaders = {
       'content-type': 'application/json',
@@ -43,7 +43,7 @@ describe('catapultxRtdProvider', () => {
   const reqBidsConfig = {
     adUnits: [{
       bids: [
-        { bidder: 'catapultx' }
+        { bidder: 'qortex' }
       ]
     }],
     ortb2Fragments: {
@@ -107,21 +107,21 @@ describe('catapultxRtdProvider', () => {
       const config = { params: { videoContainer: containerName } };
       expect(module.init(config)).to.be.false;
       expect(logErrorSpy.calledOnce).to.be.true;
-      expect(logErrorSpy.calledWith('Catapultx RTD module config does not contain valid groupId parameter. Config params: ' + JSON.stringify(config.params)))
+      expect(logErrorSpy.calledWith('qortex RTD module config does not contain valid groupId parameter. Config params: ' + JSON.stringify(config.params)))
     })
 
     it('returns false and logs error for missing groupId', () => {
       const config = { params: { groupId: 'group1' } };
       expect(module.init(config)).to.be.false;
       expect(logErrorSpy.calledOnce).to.be.true;
-      expect(logErrorSpy.calledWith('Catapultx RTD module config does not contain valid videoContainer parameter. Config params: ' + JSON.stringify(config.params)))
+      expect(logErrorSpy.calledWith('qortex RTD module config does not contain valid videoContainer parameter. Config params: ' + JSON.stringify(config.params)))
     })
 
     it('returns false for empty bidder array param', () => {
       const config = { params: { groupId: 'test', videoContainer: containerName, bidders: [] } };
       expect(module.init(config)).to.be.false;
       expect(logErrorSpy.calledOnce).to.be.true;
-      expect(logErrorSpy.calledWith('Catapultx RTD module config contains empty bidder array, must either be omitted or have at least one bidder to continue'))
+      expect(logErrorSpy.calledWith('qortex RTD module config contains empty bidder array, must either be omitted or have at least one bidder to continue'))
     })
   })
 
@@ -149,7 +149,7 @@ describe('catapultxRtdProvider', () => {
       module.getBidRequestData(reqBidsConfig, callbackSpy, config);
       setTimeout(() => {
         expect(logErrorSpy.calledOnce).to.be.true;
-        expect(logErrorSpy.calledWith('CatapultX RTD module unable to complete because Video source url missing on provided container node'))
+        expect(logErrorSpy.calledWith('qortex RTD module unable to complete because Video source url missing on provided container node'))
         expect(callbackSpy.calledOnce).to.be.true;
         done();
       }, 100)
@@ -182,7 +182,7 @@ describe('catapultxRtdProvider', () => {
     })
 
     it('properly parses optional parameters', (done) => {
-      const alternateApiHost = 'https://test.catapultx.com'
+      const alternateApiHost = 'https://test.qortex.ai'
       const container = addContainer(containerName);
       addVideoElement(container, videoSrc1)
       config.params.apiUrl = alternateApiHost;
@@ -303,7 +303,7 @@ describe('catapultxRtdProvider', () => {
       expect(result).to.be.a('promise');
       result.then().catch(err => {
         expect(err).to.be.an('error');
-        expect(err.message).to.be.eql('CatapultX RTD module unable to complete because Video source url missing on provided container node');
+        expect(err.message).to.be.eql('qortex RTD module unable to complete because Video source url missing on provided container node');
         done();
       })
     })
@@ -402,11 +402,11 @@ describe('catapultxRtdProvider', () => {
       setContextData(responseObj.videoContent);
       addContextToRequests(reqBidsConfig, bidders);
 
-      const catapultXOrtb2Fragment = reqBidsConfig.ortb2Fragments.bidder['catapultx']
-      expect(catapultXOrtb2Fragment).to.not.be.null;
-      expect(catapultXOrtb2Fragment).to.have.property('site');
-      expect(catapultXOrtb2Fragment.site).to.have.property('content');
-      expect(catapultXOrtb2Fragment.site.content).to.be.eql(responseObj.videoContent);
+      const qortexOrtb2Fragment = reqBidsConfig.ortb2Fragments.bidder['qortex']
+      expect(qortexOrtb2Fragment).to.not.be.null;
+      expect(qortexOrtb2Fragment).to.have.property('site');
+      expect(qortexOrtb2Fragment.site).to.have.property('content');
+      expect(qortexOrtb2Fragment.site.content).to.be.eql(responseObj.videoContent);
 
       const testOrtb2Fragment = reqBidsConfig.ortb2Fragments.bidder['test']
       expect(testOrtb2Fragment).to.not.be.null;

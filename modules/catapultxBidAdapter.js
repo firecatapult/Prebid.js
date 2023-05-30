@@ -5,8 +5,8 @@ import {BANNER} from '../src/mediaTypes.js';
 import {registerBidder} from '../src/adapters/bidderFactory.js';
 import {config} from '../src/config.js';
 
-const BIDDER_CODE = 'catapultx';
-const DEFAULT_API_URL = 'https://demand.catapultx.com';
+const BIDDER_CODE = 'qortex';
+const DEFAULT_API_URL = 'https://demand.qortex.ai';
 
 export const spec = {
   code: BIDDER_CODE,
@@ -21,7 +21,7 @@ export const spec = {
       bidRequest.params?.groupId?.length > 0 && 'banner' in bidRequest.mediaTypes;
   },
   /**
-   * build a valid request to be handled by catapultx demand api
+   * build a valid request to be handled by qortex demand api
    * @return Array Info describing the request to the server.
    * @param {BidRequest[]} bidRequests
    * @param {BidderRequest} bidderRequest
@@ -41,7 +41,7 @@ export const spec = {
   },
 
   /**
-   * Parse response from catapultx demand api
+   * Parse response from qortex demand api
    * @param {ServerResponse} serverResponse
    * @returns {Bid[]}
    */
@@ -86,7 +86,7 @@ export const spec = {
 registerBidder(spec);
 
 /**
- * builds PrebidRequest object for catapultx monetize/prebid endpoint
+ * builds PrebidRequest object for qortex monetize/prebid endpoint
  * @returns {String}
  */
 function buildMonetizeRequest(imps, bidderRequest, qxData, groupId) {

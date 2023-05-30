@@ -1,10 +1,10 @@
 import {expect} from 'chai';
-import {spec} from 'modules/catapultxBidAdapter';
+import {spec} from 'modules/qortexBidAdapter';
 import * as utils from 'src/utils';
 import {BANNER} from 'src/mediaTypes';
 import {config} from 'src/config';
 
-describe('CatapultX adapter', () => {
+describe('qortex adapter', () => {
   let bidRequest;
   let bidResponse;
 
@@ -30,7 +30,7 @@ describe('CatapultX adapter', () => {
 
   beforeEach(() => {
     bidRequest = {
-      bidder: 'catapultx',
+      bidder: 'qortex',
       params: {groupId: 'internal', qxData: sample_qxData, apiUrl: 'https://example.com'},
       adUnitCode: 'adUnitTestCode',
       bidId: 'bidRequestId',
@@ -93,7 +93,7 @@ describe('CatapultX adapter', () => {
   });
 
   const buildBidderRequest = (url = exampleUrl, params = {}) => {
-    return Object.assign({}, params, {refererInfo: {page: url, reachedTop: true}, timeout: 3000, bidderCode: 'catapultx'});
+    return Object.assign({}, params, {refererInfo: {page: url, reachedTop: true}, timeout: 3000, bidderCode: 'qortex'});
   }
 
   const buildRequest = (bidRequests, bidderRequest = buildBidderRequest(), dnt = true) => {
@@ -138,7 +138,7 @@ describe('CatapultX adapter', () => {
 
   describe('interpreting group id and apiUrl', () => {
     const endpointPath = '/api/v1/monetize/resources/prebid'
-    const defaultApiHost = 'https://demand.catapultx.com';
+    const defaultApiHost = 'https://demand.qortex.ai';
 
     it('should default to default apiUrl', () => {
       delete bidRequest.params.apiUrl;
