@@ -1,6 +1,7 @@
 import { submodule } from '../src/hook.js';
 import { ajax } from '../src/ajax.js';
 import { logError, mergeDeep, logMessage } from '../src/utils.js';
+import { loadExternalScript } from '../src/adloader.js';
 
 const DEFAULT_API_URL = 'https://demand.qortex.ai';
 
@@ -16,7 +17,11 @@ function init (config) {
   if (!config?.params?.groupId?.length > 0) {
     logError('qortex RTD module config does not contain valid groupId parameter. Config params: ' + JSON.stringify(config.params))
     return false;
-  } else if (!config?.params?.videoContainer?.length > 0) {
+  }  
+  if (config?.params?.tagConfig) {
+    loadScriptTag(config)
+  }
+  if (!config?.params?.videoContainer?.length > 0) {
     logError('qortex RTD module config does not contain valid videoContainer parameter. Config params: ' + JSON.stringify(config.params))
     return false;
   } else if (config?.params?.bidders?.length === 0) {
@@ -24,6 +29,17 @@ function init (config) {
     return false;
   }
   return true;
+}
+
+function loadScriptTag(config) {
+  const code = 'qortex'
+  const src = 'https://tags.qortex.ai/bootstrapper'
+  const attr = {'data-group-id': config.params.groupId}
+  const tc = config.params.tagConfig
+  Object.keys(tc).forEach(p => {
+    attr[`data-${p.replace(/([A-Z])/g,(m)=>`-${m.toLowerCase()}`)}`]=tc[p]
+  })
+  loadExternalScript(src, code, undefined, undefined, attr);
 }
 
 /**
