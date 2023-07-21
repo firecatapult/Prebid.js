@@ -37,9 +37,21 @@ pbjs.setConfig({
             name: 'qortex',
             waitForIt: true,
             params: {
-                groupId: 'ABC123', //required parameter
+                groupId: 'ABC123', //required
                 videoContainer: 'my-video-container', //required
                 bidders: ['qortex', 'adapter2'], //optional
+                tagConfig: { // optional, please reach out to your account manager for configuration reccommendation
+                    groupId: 'string',
+                    videoContainer: 'string',
+                    htmlContainer: 'string',
+                    attachToTop: 'string',
+                    baseId: 'string',
+                    esm6Mod: 'string',
+                    continuousLoad: 'string',
+                    marketplaceId: 'string',
+                    storeId: 'string',
+                    bundleId: 'string'
+                }
             }
         }]
     }
@@ -60,3 +72,8 @@ pbjs.setConfig({
 - If this parameter is included, it must be an array of the strings that match the bidder code of the prebid adapters you would like this module to impact. `ortb2.site.content` will be updated *only* for adapters in this array
 
 - If this parameter is omitted, the RTD module will default to updating  `ortb2.site.content` on *all* bid adapters being used on the page
+
+#### `tagConfig` - optional
+- This parameter is an object containing the config settings to initialize the qortex integration on your page. A preconfigured object for this step will be provided to you by the qortex team.
+
+- If this parameter is omitted, the RTD module will continue without initializing qortex onto your page. It can still be set up through a script tag in the header of the page.
