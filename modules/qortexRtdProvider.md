@@ -41,16 +41,11 @@ pbjs.setConfig({
                 videoContainer: 'my-video-container', //required
                 bidders: ['qortex', 'adapter2'], //optional
                 tagConfig: { // optional, please reach out to your account manager for configuration reccommendation
-                    groupId: 'string',
                     videoContainer: 'string',
                     htmlContainer: 'string',
                     attachToTop: 'string',
-                    baseId: 'string',
                     esm6Mod: 'string',
-                    continuousLoad: 'string',
-                    marketplaceId: 'string',
-                    storeId: 'string',
-                    bundleId: 'string'
+                    continuousLoad: 'string'
                 }
             }
         }]
