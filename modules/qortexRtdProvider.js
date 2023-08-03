@@ -1,12 +1,20 @@
 import { submodule } from '../src/hook.js';
 import { ajax } from '../src/ajax.js';
-import { logError, mergeDeep, logMessage } from '../src/utils.js';
+import { logError, mergeDeep, logMessage, generateUUID } from '../src/utils.js';
 import { loadExternalScript } from '../src/adloader.js';
+import * as events from '../src/events.js';
+import CONSTANTS from '../src/constants.json';
 
 const DEFAULT_API_URL = 'https://demand.qortex.ai';
 
+events.on(CONSTANTS.EVENTS.BILLABLE_EVENT, (e) => {
+  logMessage('BILLABLE EVENT LISTENER', e)
+})
+
 let currentSiteContext = null;
 let videoSrc = null;
+let qxTagLoaded = false;
+const impressionIds = new Set();
 
 /**
  * Init if module configuration is valid
@@ -17,7 +25,7 @@ function init (config) {
   if (!config?.params?.groupId?.length > 0) {
     logError('qortex RTD module config does not contain valid groupId parameter. Config params: ' + JSON.stringify(config.params))
     return false;
-  }  
+  }
   if (config?.params?.tagConfig) {
     loadScriptTag(config)
   }
@@ -32,8 +40,44 @@ function init (config) {
 }
 
 function loadScriptTag(config) {
-  const code = 'qortex'
+  const code = 'qortex';
+
+  addEventListener('qortex-rtd', (e) => {
+    const billableEvent = {
+      vendor: code,
+      billingId: generateUUID(),
+      type: e?.detail?.type,
+      accountId: config.params.groupId
+    }
+    switch (e?.detail?.type) {
+      case 'qx-tag-loaded':
+        if (qxTagLoaded) {
+          logError("recieved duplicate billable event: qx-tag-loaded")
+          return;
+        } else {
+          logMessage("recieved billable event: qx-tag-loaded")
+          qxTagLoaded = true;
+          break;
+        }
+      case 'qx-impression':
+        const {uid} = e.detail;
+        if (!uid || impressionIds.has(e.detail.uid)) {
+          logError(`recieved invalid billable event due to ${!uid ? 'missing': 'duplicate'} uid: qx-impression`)
+          return;
+        } else {
+          logMessage("recieved billable event: qx-impression")
+          impressionIds.add(uid)
+          billableEvent.transactionId = e.detail.uid;
+          break;
+        }
+      default:
+        logError(`recieved invalid billable event: ${e.detail.type}`)
+        return;
+    }
+    events.emit(CONSTANTS.EVENTS.BILLABLE_EVENT, billableEvent);
+  })
   const src = 'https://tags.qortex.ai/bootstrapper'
+  // const src = 'http://localhost:3001/bootstrapper'
   const attr = {'data-group-id': config.params.groupId}
   const tc = config.params.tagConfig
   Object.keys(tc).forEach(p => {
