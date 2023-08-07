@@ -38,7 +38,7 @@ pbjs.setConfig({
             waitForIt: true,
             params: {
                 groupId: 'ABC123', //required
-                videoContainer: 'my-video-container', //required
+                videoContainer: 'my-video-container', //optional
                 bidders: ['qortex', 'adapter2'], //optional
                 tagConfig: { // optional, please reach out to your account manager for configuration reccommendation
                     videoContainer: 'string',
@@ -58,10 +58,12 @@ pbjs.setConfig({
 #### `groupId` - Required
 - The qortex groupId linked to the publisher, this is required to make a request using this adapter
 
-#### `videoContainer` - Reqired
+#### `videoContainer` - Optional
 - The name of the container for the video you would like our API to get contextual data from
 
 - Can either be the `class` or the `id` of the HTML element. 
+
+- If this is not provided, the module will still be able to perform the optional qortex tag load operation, but not initialize for continuous video container analytics operations
 
 #### `bidders` - optional
 - If this parameter is included, it must be an array of the strings that match the bidder code of the prebid adapters you would like this module to impact. `ortb2.site.content` will be updated *only* for adapters in this array
