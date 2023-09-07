@@ -13,7 +13,6 @@ events.on(CONSTANTS.EVENTS.BILLABLE_EVENT, (e) => {
 
 let currentSiteContext = null;
 let videoSrc = null;
-let qxTagLoaded = false;
 const impressionIds = new Set();
 
 /**
@@ -50,15 +49,6 @@ function loadScriptTag(config) {
       accountId: config.params.groupId
     }
     switch (e?.detail?.type) {
-      case 'qx-tag-loaded':
-        if (qxTagLoaded) {
-          logError("recieved duplicate billable event: qx-tag-loaded")
-          return;
-        } else {
-          logMessage("recieved billable event: qx-tag-loaded")
-          qxTagLoaded = true;
-          break;
-        }
       case 'qx-impression':
         const {uid} = e.detail;
         if (!uid || impressionIds.has(e.detail.uid)) {
