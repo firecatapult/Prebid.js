@@ -175,9 +175,9 @@ export function addContextToRequests (reqBidsConfig, bidders) {
     logWarn('No context data recieved at this time for url: ' + videoSrc);
   } else {
     const fragment = { site: {content: currentSiteContext} }
-    if (bidders) {
+    if (bidders?.length > 0) {
       bidders.forEach(bidder => mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {[bidder]: fragment}))
-    } else {
+    } else if (!bidders) {
       mergeDeep(reqBidsConfig.ortb2Fragments.global, fragment);
     }
   }
