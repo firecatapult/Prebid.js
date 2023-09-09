@@ -1,6 +1,6 @@
 import { submodule } from '../src/hook.js';
 import { ajax } from '../src/ajax.js';
-import { logError, mergeDeep, logMessage, generateUUID } from '../src/utils.js';
+import { logWarn, mergeDeep, logMessage, generateUUID } from '../src/utils.js';
 import { loadExternalScript } from '../src/adloader.js';
 import * as events from '../src/events.js';
 import CONSTANTS from '../src/constants.json';
@@ -22,18 +22,11 @@ const impressionIds = new Set();
  */
 function init (config) {
   if (!config?.params?.groupId?.length > 0) {
-    logError('qortex RTD module config does not contain valid groupId parameter. Config params: ' + JSON.stringify(config.params))
+    logWarn('Qortex RTD module config does not contain valid groupId parameter. Config params: ' + JSON.stringify(config.params))
     return false;
   }
   if (config?.params?.tagConfig) {
     loadScriptTag(config)
-  }
-  if (!config?.params?.videoContainer?.length > 0) {
-    logError('qortex RTD module config does not contain valid videoContainer parameter. Config params: ' + JSON.stringify(config.params))
-    return false;
-  } else if (config?.params?.bidders?.length === 0) {
-    logError('qortex RTD module config contains empty bidder array, must either be omitted or have at least one bidder to continue');
-    return false;
   }
   return true;
 }
@@ -52,7 +45,7 @@ function loadScriptTag(config) {
       case 'qx-impression':
         const {uid} = e.detail;
         if (!uid || impressionIds.has(e.detail.uid)) {
-          logError(`recieved invalid billable event due to ${!uid ? 'missing': 'duplicate'} uid: qx-impression`)
+          logWarn(`recieved invalid billable event due to ${!uid ? 'missing': 'duplicate'} uid: qx-impression`)
           return;
         } else {
           logMessage("recieved billable event: qx-impression")
@@ -61,13 +54,12 @@ function loadScriptTag(config) {
           break;
         }
       default:
-        logError(`recieved invalid billable event: ${e.detail.type}`)
+        logWarn(`recieved invalid billable event: ${e.detail.type}`)
         return;
     }
     events.emit(CONSTANTS.EVENTS.BILLABLE_EVENT, billableEvent);
   })
   const src = 'https://tags.qortex.ai/bootstrapper'
-  // const src = 'http://localhost:3001/bootstrapper'
   const attr = {'data-group-id': config.params.groupId}
   const tc = config.params.tagConfig
   Object.keys(tc).forEach(p => {
@@ -93,11 +85,11 @@ function getBidRequestData (reqBidsConfig, callback, moduleConfig) {
         callback();
       })
       .catch((e) => {
-        logError(e.message);
+        logWarn(e.message);
         callback();
       });
   } else {
-    logError('No adunits found on request bids configuration: ' + JSON.stringify(reqBidsConfig))
+    logWarn('No adunits found on request bids configuration: ' + JSON.stringify(reqBidsConfig))
     callback();
   }
 }
@@ -138,14 +130,14 @@ export function videoSourceUpdated (videoContainer) {
 
 /**
  * determines whether to send a request to context api and does so if necessary
- * @param {String} requestUrl qortex context api url
- * @param {String} groupId qortex publisher groupId
+ * @param {String} requestUrl Qortex context api url
+ * @param {String} groupId Qortex publisher groupId
  * @param {Boolean} updated boolean indicating whether or not the video source url has changed since last lookup in runtime
  * @returns {Promise} ortb Content object
  */
 export function getContext (requestUrl, groupId, updated) {
   if (videoSrc === null) {
-    return new Promise((resolve, reject) => reject(new Error('qortex RTD module unable to complete because Video source url missing on provided container node')));
+    return new Promise((resolve, reject) => reject('Qortex RTD module unable to complete because Video source url missing on provided container node'));
   } else if (updated || (!updated && !currentSiteContext)) {
     logMessage('Requesting new context data');
     return new Promise((resolve, reject) => {
@@ -174,13 +166,13 @@ export function getContext (requestUrl, groupId, updated) {
 }
 
 /**
- * Updates bidder configs with the response from qortex context services
+ * Updates bidder configs with the response from Qortex context services
  * @param {Object} reqBidsConfig Bid request configuration object
  * @param {string[]} bidders Bidders specified in module's configuration
  */
 export function addContextToRequests (reqBidsConfig, bidders) {
   if (currentSiteContext === null) {
-    logError('No context data recieved at this time for url: ' + videoSrc);
+    logWarn('No context data recieved at this time for url: ' + videoSrc);
   } else {
     const fragment = { site: {content: currentSiteContext} }
     if (bidders) {
