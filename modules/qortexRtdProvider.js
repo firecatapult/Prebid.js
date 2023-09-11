@@ -5,14 +5,15 @@ import { loadExternalScript } from '../src/adloader.js';
 import * as events from '../src/events.js';
 import CONSTANTS from '../src/constants.json';
 
-const DEFAULT_API_URL = 'https://demand.qortex.ai';
+let requestUrl = null;
+let bidderArray = null;
+
+let currentSiteContext = null;
+const impressionIds = new Set();
 
 events.on(CONSTANTS.EVENTS.BILLABLE_EVENT, (e) => {
   logMessage('BILLABLE EVENT LISTENER', e)
 })
-
-let currentSiteContext = null;
-const impressionIds = new Set();
 
 /**
  * Init if module configuration is valid
@@ -23,6 +24,8 @@ function init (config) {
   if (!config?.params?.groupId?.length > 0) {
     logWarn('Qortex RTD module config does not contain valid groupId parameter. Config params: ' + JSON.stringify(config.params))
     return false;
+  } else {
+    initializeModuleData(config);
   }
   if (config?.params?.tagConfig) {
     loadScriptTag(config)
@@ -32,13 +35,21 @@ function init (config) {
 
 function loadScriptTag(config) {
   const code = 'qortex';
+  const groupId = config.params.groupId;
+  const src = 'https://tags.qortex.ai/bootstrapper'
+  const attr = {'data-group-id': groupId}
+  const tc = config.params.tagConfig
+  
+  Object.keys(tc).forEach(p => {
+    attr[`data-${p.replace(/([A-Z])/g,(m)=>`-${m.toLowerCase()}`)}`]=tc[p]
+  })
 
   addEventListener('qortex-rtd', (e) => {
     const billableEvent = {
       vendor: code,
       billingId: generateUUID(),
       type: e?.detail?.type,
-      accountId: config.params.groupId
+      accountId: groupId
     }
     switch (e?.detail?.type) {
       case 'qx-impression':
@@ -58,12 +69,7 @@ function loadScriptTag(config) {
     }
     events.emit(CONSTANTS.EVENTS.BILLABLE_EVENT, billableEvent);
   })
-  const src = 'https://tags.qortex.ai/bootstrapper'
-  const attr = {'data-group-id': config.params.groupId}
-  const tc = config.params.tagConfig
-  Object.keys(tc).forEach(p => {
-    attr[`data-${p.replace(/([A-Z])/g,(m)=>`-${m.toLowerCase()}`)}`]=tc[p]
-  })
+
   loadExternalScript(src, code, undefined, undefined, attr);
 }
 
@@ -71,16 +77,13 @@ function loadScriptTag(config) {
  * Processess prebid request and attempts to add context to ort2b fragments
  * @param {Object} reqBidsConfig Bid request configuration object
  * @param {Function} callback Called on completion
- * @param {Object} moduleConfig
  */
-function getBidRequestData (reqBidsConfig, callback, moduleConfig) {
+function getBidRequestData (reqBidsConfig, callback) {
   if (reqBidsConfig?.adUnits?.length > 0) {
-    const {apiUrl, bidders, groupId} = moduleConfig.params;
-    const requestUrl = `${apiUrl || DEFAULT_API_URL}/api/v1/analyze/${groupId}/prebid`;
-    getContext(requestUrl, groupId)
+    getContext()
       .then(contextData => {
         setContextData(contextData)
-        addContextToRequests(reqBidsConfig, bidders)
+        addContextToRequests(reqBidsConfig)
         callback();
       })
       .catch((e) => {
@@ -95,21 +98,12 @@ function getBidRequestData (reqBidsConfig, callback, moduleConfig) {
 
 /**
  * determines whether to send a request to context api and does so if necessary
- * @param {String} requestUrl Qortex context api url
- * @param {String} groupId Qortex publisher groupId
- * @param {Boolean} updated boolean indicating whether or not the video source url has changed since last lookup in runtime
  * @returns {Promise} ortb Content object
  */
-export function getContext (requestUrl, groupId) {
+export function getContext () {
   if (!currentSiteContext) {
     logMessage('Requesting new context data');
     return new Promise((resolve, reject) => {
-      const contextRequest = {
-        groupId: groupId
-      }
-      const options = {
-        contentType: 'application/json'
-      }
       const callbacks = {
         success(text, data) {
           const result = data.status === 200 ? JSON.parse(data.response)?.content : null;
@@ -132,21 +126,30 @@ export function getContext (requestUrl, groupId) {
  * @param {Object} reqBidsConfig Bid request configuration object
  * @param {string[]} bidders Bidders specified in module's configuration
  */
-export function addContextToRequests (reqBidsConfig, bidders) {
+export function addContextToRequests (reqBidsConfig) {
   if (currentSiteContext === null) {
     logWarn('No context data recieved at this time');
   } else {
     const fragment = { site: {content: currentSiteContext} }
-    if (bidders?.length > 0) {
-      bidders.forEach(bidder => mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {[bidder]: fragment}))
-    } else if(!bidders) {
+    if (bidderArray?.length > 0) {
+      bidderArray.forEach(bidder => mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {[bidder]: fragment}))
+    } else if(!bidderArray) {
       mergeDeep(reqBidsConfig.ortb2Fragments.global, fragment);
+    } else {
+      logWarn('Config contains an empty bidders array, unable to determine which bids to enrich');
     }
   }
 }
 
 export function setContextData(value) {
   currentSiteContext = value
+}
+
+export function initializeModuleData(config) {
+  const DEFAULT_API_URL = 'https://demand.qortex.ai';
+  const {apiUrl, groupId, bidders} = config;
+  requestUrl = `${apiUrl || DEFAULT_API_URL}/api/v1/analyze/${groupId}/prebid`;
+  bidderArray = bidders;
 }
 
 export const qortexSubmodule = {
