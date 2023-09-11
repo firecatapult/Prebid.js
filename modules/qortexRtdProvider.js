@@ -33,46 +33,6 @@ function init (config) {
   return true;
 }
 
-function loadScriptTag(config) {
-  const code = 'qortex';
-  const groupId = config.params.groupId;
-  const src = 'https://tags.qortex.ai/bootstrapper'
-  const attr = {'data-group-id': groupId}
-  const tc = config.params.tagConfig
-  
-  Object.keys(tc).forEach(p => {
-    attr[`data-${p.replace(/([A-Z])/g,(m)=>`-${m.toLowerCase()}`)}`]=tc[p]
-  })
-
-  addEventListener('qortex-rtd', (e) => {
-    const billableEvent = {
-      vendor: code,
-      billingId: generateUUID(),
-      type: e?.detail?.type,
-      accountId: groupId
-    }
-    switch (e?.detail?.type) {
-      case 'qx-impression':
-        const {uid} = e.detail;
-        if (!uid || impressionIds.has(e.detail.uid)) {
-          logWarn(`recieved invalid billable event due to ${!uid ? 'missing': 'duplicate'} uid: qx-impression`)
-          return;
-        } else {
-          logMessage("recieved billable event: qx-impression")
-          impressionIds.add(uid)
-          billableEvent.transactionId = e.detail.uid;
-          break;
-        }
-      default:
-        logWarn(`recieved invalid billable event: ${e.detail.type}`)
-        return;
-    }
-    events.emit(CONSTANTS.EVENTS.BILLABLE_EVENT, billableEvent);
-  })
-
-  loadExternalScript(src, code, undefined, undefined, attr);
-}
-
 /**
  * Processess prebid request and attempts to add context to ort2b fragments
  * @param {Object} reqBidsConfig Bid request configuration object
@@ -139,6 +99,46 @@ export function addContextToRequests (reqBidsConfig) {
       logWarn('Config contains an empty bidders array, unable to determine which bids to enrich');
     }
   }
+}
+
+export function loadScriptTag(config) {
+  const code = 'qortex';
+  const groupId = config.params.groupId;
+  const src = 'https://tags.qortex.ai/bootstrapper'
+  const attr = {'data-group-id': groupId}
+  const tc = config.params.tagConfig
+  
+  Object.keys(tc).forEach(p => {
+    attr[`data-${p.replace(/([A-Z])/g,(m)=>`-${m.toLowerCase()}`)}`]=tc[p]
+  })
+
+  addEventListener('qortex-rtd', (e) => {
+    const billableEvent = {
+      vendor: code,
+      billingId: generateUUID(),
+      type: e?.detail?.type,
+      accountId: groupId
+    }
+    switch (e?.detail?.type) {
+      case 'qx-impression':
+        const {uid} = e.detail;
+        if (!uid || impressionIds.has(e.detail.uid)) {
+          logWarn(`recieved invalid billable event due to ${!uid ? 'missing': 'duplicate'} uid: qx-impression`)
+          return;
+        } else {
+          logMessage("recieved billable event: qx-impression")
+          impressionIds.add(uid)
+          billableEvent.transactionId = e.detail.uid;
+          break;
+        }
+      default:
+        logWarn(`recieved invalid billable event: ${e.detail.type}`)
+        return;
+    }
+    events.emit(CONSTANTS.EVENTS.BILLABLE_EVENT, billableEvent);
+  })
+
+  loadExternalScript(src, code, undefined, undefined, attr);
 }
 
 export function setContextData(value) {
