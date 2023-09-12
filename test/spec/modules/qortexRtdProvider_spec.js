@@ -1,45 +1,84 @@
 import * as utils from 'src/utils';
 import * as ajax from 'src/ajax.js';
+import * as events from 'src/events.js';
+import CONSTANTS from '../../../src/constants.json';
+import {loadExternalScript} from 'src/adloader.js';
 import {
   qortexSubmodule as module,
-  locateVideoUrl,
-  videoSourceUpdated,
   getContext,
   addContextToRequests,
-  setSrc,
-  setContextData
+  setContextData,
+  initializeModuleData,
+  loadScriptTag
 } from '../../../modules/qortexRtdProvider';
+import { cloneDeep } from 'lodash';
 
 describe('qortexRtdProvider', () => {
-  let logErrorSpy;
+  let logWarnSpy;
   let mockServer;
   let ajaxSpy;
   let ortb2Stub;
 
-  const videoSrc1 = 'http://hello.test.com/example.mp4';
-  const videoSrc2 = 'http://test.two.com/second.mp4';
   const defaultApiHost = 'https://demand.qortex.ai';
-  const containerName = 'my-video-container';
+  const defaultGroupId = 'test';
   const validBidderArray = ['qortex', 'test'];
+  const validTagConfig = {
+    videoContainer: 'my-video-container'
+  }
+
+  const validModuleConfig = {
+    params: {
+      groupId: defaultGroupId,
+      apiUrl: defaultApiHost,
+      bidders: validBidderArray
+    }
+  };
+
+  const validImpressionEvent = {
+      detail: {
+        uid: 'uid123',
+        type: 'qx-impression'
+      }
+    },
+    validImpressionEvent2 = {
+      detail: {
+        uid: 'uid1234',
+        type: 'qx-impression'
+      }
+    },
+    missingIdImpressionEvent = {
+      detail: {
+        type: 'qx-impression'
+      }
+    },
+    invalidTypeQortexEvent = {
+      detail: {
+        type: 'invalid-type'
+      }
+    }
+
+  const emptyModuleConfig = {
+    params: {}
+  }
 
   const responseHeaders = {
-      'content-type': 'application/json',
-      'access-control-allow-origin': '*'
-    };
+    'content-type': 'application/json',
+    'access-control-allow-origin': '*'
+  };
 
   const responseObj = {
-      videoContent: {
-        id: '123456',
-        episode: 15,
-        title: 'test episode',
-        series: 'test show',
-        season: '1',
-        url: 'https://example.com/file.mp4'
-      }
-    };
+    content: {
+      id: '123456',
+      episode: 15,
+      title: 'test episode',
+      series: 'test show',
+      season: '1',
+      url: 'https://example.com/file.mp4'
+    }
+  };
 
   const apiResponse = JSON.stringify(responseObj);
-  
+
   const reqBidsConfig = {
     adUnits: [{
       bids: [
@@ -59,289 +98,175 @@ describe('qortexRtdProvider', () => {
     mockServer.autoRespond = true;
 
     ortb2Stub = sinon.stub(reqBidsConfig, 'ortb2Fragments').value({bidder: {}, global: {}})
-    logErrorSpy = sinon.spy(utils, 'logError');
+    logWarnSpy = sinon.spy(utils, 'logWarn');
     ajaxSpy = sinon.spy(ajax, 'ajax');
   })
 
   afterEach(() => {
     ajaxSpy.restore();
-    logErrorSpy.restore();
+    logWarnSpy.restore();
     ortb2Stub.restore();
     mockServer.restore();
-    resetGlobalData();
-  })
-
-  const addContainer = (name) => {
-    const container = document.createElement(name);
-    container.id = name;
-    document.body.appendChild(container);
-    return container;
-  }
-
-  const addVideoElement = (container, videoSource = null) => {
-    const video = document.createElement('video');
-    if (videoSource) {
-      video.src = `${videoSource}`;
-    }
-    container.appendChild(video);
-    return video;
-  }
-
-  const resetGlobalData = () => {
-    setSrc(null);
     setContextData(null);
-  }
+  })
 
   describe('init', () => {
     it('returns true for valid config object', () => {
-      const config = { params: { groupId: 'test', videoContainer: containerName } };
-      expect(module.init(config)).to.be.true;
-    })
-
-    it('returns true with valid optional parameters', () => {
-      const config = { params: { groupId: 'test', videoContainer: containerName, apiUrl: defaultApiHost, bidders: validBidderArray } };
-      expect(module.init(config)).to.be.true;
+      expect(module.init(validModuleConfig)).to.be.true;
     })
 
     it('returns false and logs error for missing groupId', () => {
-      const config = { params: { videoContainer: containerName } };
-      expect(module.init(config)).to.be.false;
-      expect(logErrorSpy.calledOnce).to.be.true;
-      expect(logErrorSpy.calledWith('qortex RTD module config does not contain valid groupId parameter. Config params: ' + JSON.stringify(config.params)))
+      expect(module.init(emptyModuleConfig)).to.be.false;
+      expect(logWarnSpy.calledOnce).to.be.true;
+      expect(logWarnSpy.calledWith('Qortex RTD module config does not contain valid groupId parameter. Config params: {}')).to.be.ok;
     })
 
-    it('returns false and logs error for missing groupId', () => {
-      const config = { params: { groupId: 'group1' } };
-      expect(module.init(config)).to.be.false;
-      expect(logErrorSpy.calledOnce).to.be.true;
-      expect(logErrorSpy.calledWith('qortex RTD module config does not contain valid videoContainer parameter. Config params: ' + JSON.stringify(config.params)))
+    it('loads Qortex script if tagConfig is present in module config params', () => {
+      const config = cloneDeep(validModuleConfig);
+      config.params.tagConfig = validTagConfig;
+      expect(module.init(config)).to.be.true;
+      expect(loadExternalScript.calledOnce).to.be.true;
+    })
+  })
+
+  describe('loadScriptTag', () => {
+    let addEventListenerSpy;
+    let billableEvents = [];
+
+    let config = cloneDeep(validModuleConfig);
+    config.params.tagConfig = validTagConfig;
+
+    events.on(CONSTANTS.EVENTS.BILLABLE_EVENT, (e) => {
+      billableEvents.push(e);
     })
 
-    it('returns false for empty bidder array param', () => {
-      const config = { params: { groupId: 'test', videoContainer: containerName, bidders: [] } };
-      expect(module.init(config)).to.be.false;
-      expect(logErrorSpy.calledOnce).to.be.true;
-      expect(logErrorSpy.calledWith('qortex RTD module config contains empty bidder array, must either be omitted or have at least one bidder to continue'))
+    beforeEach(() => {
+      initializeModuleData(config);
+      addEventListenerSpy = sinon.spy(window, 'addEventListener');
+    })
+
+    afterEach(() => {
+      addEventListenerSpy.restore();
+      billableEvents = [];
+    })
+
+    it('adds event listener', () => {
+      loadScriptTag(config);
+      expect(addEventListenerSpy.calledOnce).to.be.true;
+    })
+
+    it('parses incoming qortex-impression events', () => {
+      loadScriptTag(config);
+      dispatchEvent(new CustomEvent('qortex-rtd', validImpressionEvent));
+      expect(billableEvents.length).to.be.equal(1);
+      expect(billableEvents[0].type).to.be.equal(validImpressionEvent.detail.type);
+      expect(billableEvents[0].transactionId).to.be.equal(validImpressionEvent.detail.uid);
+    })
+
+    it('will emit two events for impressions with two different ids', () => {
+      loadScriptTag(config);
+      dispatchEvent(new CustomEvent('qortex-rtd', validImpressionEvent));
+      dispatchEvent(new CustomEvent('qortex-rtd', validImpressionEvent2));
+      expect(billableEvents.length).to.be.equal(2);
+      expect(billableEvents[0].transactionId).to.be.equal(validImpressionEvent.detail.uid);
+      expect(billableEvents[1].transactionId).to.be.equal(validImpressionEvent2.detail.uid);
+    })
+
+    it('will not allow multiple events with the same id', () => {
+      loadScriptTag(config);
+      dispatchEvent(new CustomEvent('qortex-rtd', validImpressionEvent));
+      dispatchEvent(new CustomEvent('qortex-rtd', validImpressionEvent));
+      expect(billableEvents.length).to.be.equal(1);
+      expect(logWarnSpy.calledWith('recieved invalid billable event due to duplicate uid: qx-impression')).to.be.ok;
+    })
+
+    it('will not allow events with missing uid', () => {
+      loadScriptTag(config);
+      dispatchEvent(new CustomEvent('qortex-rtd', missingIdImpressionEvent));
+      expect(billableEvents.length).to.be.equal(0);
+      expect(logWarnSpy.calledWith('recieved invalid billable event due to missing uid: qx-impression')).to.be.ok;
+    })
+
+    it('will not allow events with unavailable type', () => {
+      loadScriptTag(config);
+      dispatchEvent(new CustomEvent('qortex-rtd', invalidTypeQortexEvent));
+      expect(billableEvents.length).to.be.equal(0);
+      expect(logWarnSpy.calledWith('recieved invalid billable event: invalid-type')).to.be.ok;
     })
   })
 
   describe('getBidRequestData', () => {
-    let config;
     let callbackSpy;
 
     beforeEach(() => {
-      config = { params: { groupId: 'test', videoContainer: containerName } };
+      initializeModuleData(validModuleConfig);
       callbackSpy = sinon.spy();
     })
 
     afterEach(() => {
+      initializeModuleData(emptyModuleConfig);
       callbackSpy.resetHistory();
     })
 
     it('will call callback immediately if no adunits', () => {
       const reqBidsConfigNoBids = { adUnits: [] };
-      module.getBidRequestData(reqBidsConfigNoBids, callbackSpy, config);
+      module.getBidRequestData(reqBidsConfigNoBids, callbackSpy);
       expect(callbackSpy.calledOnce).to.be.true;
-      expect(logErrorSpy.calledWith('No adunits found on request bids configuration: ' + JSON.stringify(reqBidsConfigNoBids)))
+      expect(logWarnSpy.calledWith('No adunits found on request bids configuration: ' + JSON.stringify(reqBidsConfigNoBids))).to.be.ok;
     })
 
-    it('will log error and call callback if container lookup returns no source', (done) => {
-      module.getBidRequestData(reqBidsConfig, callbackSpy, config);
-      setTimeout(() => {
-        expect(logErrorSpy.calledOnce).to.be.true;
-        expect(logErrorSpy.calledWith('qortex RTD module unable to complete because Video source url missing on provided container node'))
-        expect(callbackSpy.calledOnce).to.be.true;
-        done();
-      }, 100)
-    })
-
-    it('will attempt add to context and then call callback if getContext does not throw', (done) => {
-      const container = addContainer(containerName);
-      addVideoElement(container, videoSrc1)
-      module.getBidRequestData(reqBidsConfig, callbackSpy, config);
-      container.remove();
+    it('will call callback if getContext does not throw', (done) => {
+      module.getBidRequestData(reqBidsConfig, callbackSpy);
       setTimeout(() => {
         expect(ajaxSpy.calledOnce).to.be.true;
         expect(callbackSpy.calledOnce).to.be.true;
-        expect(reqBidsConfig.ortb2Fragments.global.site.content).to.not.be.null;
         done();
       }, 100)
     })
 
-    it('gracefully handles null apiurl and bidders array', (done) => {
-      const container = addContainer(containerName);
-      addVideoElement(container, videoSrc1);
-      module.getBidRequestData(reqBidsConfig, callbackSpy, config);
-      container.remove();
+    it('will catch and log error and fire callback', (done) => {
+      ajaxSpy.restore();
+      sinon.stub(ajax, 'ajax').throws(new Error('test error'))
+      module.getBidRequestData(reqBidsConfig, callbackSpy);
       setTimeout(() => {
-        expect(mockServer.requests[0].url).to.be.eql(defaultApiHost + '/api/v1/analyze/video/prebid')
-        expect(reqBidsConfig.ortb2Fragments.global.site.content).to.not.be.null;
-        expect(reqBidsConfig.ortb2Fragments.bidder).to.be.eql({});
-        done();
-      }, 100);
-    })
-
-    it('properly parses optional parameters', (done) => {
-      const alternateApiHost = 'https://test.qortex.ai'
-      const container = addContainer(containerName);
-      addVideoElement(container, videoSrc1)
-      config.params.apiUrl = alternateApiHost;
-      config.params.bidders = validBidderArray
-      module.getBidRequestData(reqBidsConfig, callbackSpy, config);
-      container.remove();
-      setTimeout(() => {
-        expect(mockServer.requests[0].url).to.be.eql(alternateApiHost + '/api/v1/analyze/video/prebid')
-        const bidders = Object.keys(reqBidsConfig.ortb2Fragments.bidder);
-        expect(bidders).to.be.eql(config.params.bidders);
-        expect(bidders.length).to.be.eql(2);
+        expect(callbackSpy.calledOnce).to.be.true;
+        expect(logWarnSpy.calledWith('test error')).to.be.ok;
         done();
       }, 100)
-    })
-  })
-
-  describe('locateVideoUrl', () => {
-    it('locates video source on valid container node with video object', () => {
-      const container = addContainer(containerName);
-      addVideoElement(container, videoSrc1)
-      const result = locateVideoUrl(containerName);
-      expect(result).to.be.equal(videoSrc1);
-      container.remove();
-    })
-
-    it('finds new video source on same container in between lookups', () => {
-      const container = addContainer(containerName);
-      const video = addVideoElement(container, videoSrc1)
-      const firstVideo = locateVideoUrl(containerName);
-      expect(firstVideo).to.be.equal(videoSrc1);
-      video.src = videoSrc2;
-      const secondVideo = locateVideoUrl(containerName);
-      expect(secondVideo).to.be.equal(videoSrc2);
-      container.remove();
-    })
-
-    it('returns null for container with no video element', () => {
-      const container = addContainer(containerName);
-      const result = locateVideoUrl(containerName);
-      expect(result).to.be.null;
-      container.remove();
-    })
-
-    it('returns null for container with video element with no source', () => {
-      const container = addContainer(containerName);
-      addVideoElement(container)
-      const result = locateVideoUrl(containerName);
-      expect(result).to.be.null;
-      container.remove();
-    })
-
-    it('returns null for no container', () => {
-      const result = locateVideoUrl(containerName);
-      expect(result).to.be.null;
-    })
-  })
-
-  describe('videoSourceUpdated', () => {
-    it('returns true when container with video source is added', () => {
-      const container = addContainer(containerName);
-      addVideoElement(container, videoSrc1)
-      const result = videoSourceUpdated(containerName);
-      expect(result).to.be.true;
-      container.remove();
-    })
-
-    it('returns true when video source is updated', () => {
-      const container = addContainer(containerName);
-      const video = addVideoElement(container, videoSrc1)
-      const firstUpdate = videoSourceUpdated(containerName);
-      expect(firstUpdate).to.be.true;
-      video.src = videoSrc2;
-      const secondUpdate = videoSourceUpdated(containerName);
-      expect(secondUpdate).to.be.true;
-      container.remove();
-    })
-
-    it('returns true when source is updated to null', () => {
-      const container = addContainer(containerName);
-      const video = addVideoElement(container, videoSrc1)
-      const updatedToUrlResult = videoSourceUpdated(containerName);
-      expect(updatedToUrlResult).to.be.true;
-      video.remove();
-      const updatedToNullResult = videoSourceUpdated(containerName);
-      expect(updatedToNullResult).to.be.true;
-      container.remove();
-    })
-
-    it('returns false when source is never updated from null', () => {
-      const container = addContainer(containerName);
-      const result = videoSourceUpdated(containerName);
-      expect(result).to.eql(false);
-      container.remove();
-    })
-
-    it('returns false when a video source has not been updated', () => {
-      const container = addContainer(containerName);
-      addVideoElement(container, videoSrc1)
-      const firstCall = videoSourceUpdated(containerName);
-      expect(firstCall).to.be.true;
-      const secondCall = videoSourceUpdated(containerName);
-      expect(secondCall).to.be.false;
-      container.remove();
     })
   })
 
   describe('getContext', () => {
-    const requestUrl = defaultApiHost + '/api/v1/analyze/video/prebid';
-    const groupId = 'groupId';
-    let updated;
-
     beforeEach(() => {
-      updated = true;
+      initializeModuleData(validModuleConfig);
     })
 
-    it('returns a promise that rejects to an Error if pipeline is unable to detect a video src', (done) => {
-      const result = getContext(requestUrl, groupId, updated);
+    afterEach(() => {
+      initializeModuleData(emptyModuleConfig);
+    })
+
+    it('returns a promise', () => {
+      const result = getContext();
       expect(result).to.be.a('promise');
-      result.then().catch(err => {
-        expect(err).to.be.an('error');
-        expect(err.message).to.be.eql('qortex RTD module unable to complete because Video source url missing on provided container node');
-        done();
-      })
     })
 
-    it('creates ajax request and returns promise with result video source is updated', (done) => {
-      setSrc(videoSrc1);
-      getContext(requestUrl, groupId, updated).then(response => {
-        expect(response).to.be.eql(responseObj.videoContent);
+    it('uses request url generated from initialize function in config and resolves to content object data', (done) => {
+      let requestUrl = `${validModuleConfig.params.apiUrl}/api/v1/analyze/${validModuleConfig.params.groupId}/prebid`;
+      getContext().then(response => {
+        expect(response).to.be.eql(responseObj.content);
         expect(ajaxSpy.calledOnce).to.be.true;
         expect(ajaxSpy.calledWith(requestUrl)).to.be.true;
 
-        const parsedRequest = JSON.parse(mockServer.requests[0].requestBody);
-
-        expect(parsedRequest).to.have.property('groupId');
-        expect(parsedRequest.groupId).to.be.eql('groupId');
-        expect(parsedRequest).to.have.property('videoUrl');
-        expect(parsedRequest.videoUrl).to.be.eql(videoSrc1);
+        expect(response).to.be.eql(responseObj.content);
 
         done();
-      })
-    })
-
-    it('will intiate ajax if source is not updated but there is no global context data set', (done) => {
-      setSrc(videoSrc1);
-      updated = false;
-      getContext(requestUrl, groupId, updated).then(response => {
-        expect(response).to.be.eql(responseObj.videoContent);
-        expect(ajaxSpy.calledOnce).to.be.true;
-        done();
-      })
+      });
     })
 
     it('will return existing context data instead of ajax call if the source was not updated', (done) => {
-      setSrc(videoSrc1);
-      setContextData(responseObj.videoContent);
-      updated = false;
-      getContext(requestUrl, groupId, updated).then(response => {
-        expect(response).to.be.eql(responseObj.videoContent);
+      setContextData(responseObj.content);
+      getContext().then(response => {
+        expect(response).to.be.eql(responseObj.content);
         expect(ajaxSpy.calledOnce).to.be.false;
         done();
       })
@@ -349,72 +274,81 @@ describe('qortexRtdProvider', () => {
 
     it('returns null for non erroring api responses other than 200', (done) => {
       mockServer = sinon.createFakeServer();
-      mockServer.respondWith([204, {}, '']);
+      mockServer.respondWith([204, {content: null}, '']);
       mockServer.respondImmediately = true;
       mockServer.autoRespond = true;
-      setSrc(videoSrc1);
-      getContext(requestUrl, groupId, updated).then(response => {
+      getContext().then(response => {
         expect(response).to.be.null;
         expect(ajaxSpy.calledOnce).to.be.true;
-        expect(logErrorSpy.called).to.be.false;
+        expect(logWarnSpy.called).to.be.false;
         done();
       });
     })
 
     it('returns a promise that rejects to an Error if ajax errors', () => {
       mockServer = sinon.createFakeServer();
-      mockServer.respondWith([404, {}, '']);
+      mockServer.respondWith([500, {}, '']);
       mockServer.respondImmediately = true;
       mockServer.autoRespond = true;
-      setSrc(videoSrc1);
-      getContext(requestUrl, groupId, updated).then().catch(err => {
+      getContext().then().catch(err => {
         expect(err).to.be.an('error');
-        expect(err.message).to.be.eql('Not Found');
         done();
       })
     })
   })
 
   describe(' addContextToRequests', () => {
-    beforeEach(() => {
-      setSrc(videoSrc1);
-    })
-
     it('logs error if no data was retrieved from get context call', () => {
+      initializeModuleData(validModuleConfig);
       addContextToRequests(reqBidsConfig);
-      expect(logErrorSpy.calledOnce).to.be.true;
-      expect(logErrorSpy.calledWith('No context data recieved at this time for url: ' + videoSrc1))
+      expect(logWarnSpy.calledOnce).to.be.true;
+      expect(logWarnSpy.calledWith('No context data recieved at this time')).to.be.ok;
       expect(reqBidsConfig.ortb2Fragments.global).to.be.eql({});
       expect(reqBidsConfig.ortb2Fragments.bidder).to.be.eql({});
     })
 
     it('adds site.content only to global ortb2 when bidders array is omitted', () => {
-      setContextData(responseObj.videoContent);
+      const omittedBidderArrayConfig = cloneDeep(validModuleConfig);
+      delete omittedBidderArrayConfig.params.bidders;
+      initializeModuleData(omittedBidderArrayConfig);
+      setContextData(responseObj.content);
       addContextToRequests(reqBidsConfig);
       expect(reqBidsConfig.ortb2Fragments.global).to.have.property('site');
       expect(reqBidsConfig.ortb2Fragments.global.site).to.have.property('content');
-      expect(reqBidsConfig.ortb2Fragments.global.site.content).to.be.eql(responseObj.videoContent);
+      expect(reqBidsConfig.ortb2Fragments.global.site.content).to.be.eql(responseObj.content);
       expect(reqBidsConfig.ortb2Fragments.bidder).to.be.eql({});
     })
 
-    it('adds site.content only to bidder ortb2 when bidders array is omitted', () => {
-      const bidders = validBidderArray
-      setContextData(responseObj.videoContent);
-      addContextToRequests(reqBidsConfig, bidders);
+    it('adds site.content only to bidder ortb2 when bidders array is included', () => {
+      initializeModuleData(validModuleConfig);
+      setContextData(responseObj.content);
+      addContextToRequests(reqBidsConfig);
 
       const qortexOrtb2Fragment = reqBidsConfig.ortb2Fragments.bidder['qortex']
       expect(qortexOrtb2Fragment).to.not.be.null;
       expect(qortexOrtb2Fragment).to.have.property('site');
       expect(qortexOrtb2Fragment.site).to.have.property('content');
-      expect(qortexOrtb2Fragment.site.content).to.be.eql(responseObj.videoContent);
+      expect(qortexOrtb2Fragment.site.content).to.be.eql(responseObj.content);
 
       const testOrtb2Fragment = reqBidsConfig.ortb2Fragments.bidder['test']
       expect(testOrtb2Fragment).to.not.be.null;
       expect(testOrtb2Fragment).to.have.property('site');
       expect(testOrtb2Fragment.site).to.have.property('content');
-      expect(testOrtb2Fragment.site.content).to.be.eql(responseObj.videoContent);
+      expect(testOrtb2Fragment.site.content).to.be.eql(responseObj.content);
 
       expect(reqBidsConfig.ortb2Fragments.global).to.be.eql({});
+    })
+
+    it('logs error if there is an empty bidder array', () => {
+      const invalidBidderArrayConfig = cloneDeep(validModuleConfig);
+      invalidBidderArrayConfig.params.bidders = [];
+      initializeModuleData(invalidBidderArrayConfig);
+      setContextData(responseObj.content)
+      addContextToRequests(reqBidsConfig);
+
+      expect(logWarnSpy.calledWith('Config contains an empty bidders array, unable to determine which bids to enrich')).to.be.ok;
+      expect(reqBidsConfig.ortb2Fragments.global).to.be.eql({});
+      expect(reqBidsConfig.ortb2Fragments.bidder).to.be.eql({});
     })
   })
 })

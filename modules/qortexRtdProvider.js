@@ -5,15 +5,10 @@ import { loadExternalScript } from '../src/adloader.js';
 import * as events from '../src/events.js';
 import CONSTANTS from '../src/constants.json';
 
-let requestUrl = null;
-let bidderArray = null;
-
-let currentSiteContext = null;
-const impressionIds = new Set();
-
-events.on(CONSTANTS.EVENTS.BILLABLE_EVENT, (e) => {
-  logMessage('BILLABLE EVENT LISTENER', e)
-})
+let requestUrl;
+let bidderArray;
+let impressionIds;
+let currentSiteContext;
 
 /**
  * Init if module configuration is valid
@@ -47,7 +42,7 @@ function getBidRequestData (reqBidsConfig, callback) {
         callback();
       })
       .catch((e) => {
-        logWarn(e.message);
+        logWarn(e?.message);
         callback();
       });
   } else {
@@ -93,7 +88,7 @@ export function addContextToRequests (reqBidsConfig) {
     const fragment = { site: {content: currentSiteContext} }
     if (bidderArray?.length > 0) {
       bidderArray.forEach(bidder => mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {[bidder]: fragment}))
-    } else if(!bidderArray) {
+    } else if (!bidderArray) {
       mergeDeep(reqBidsConfig.ortb2Fragments.global, fragment);
     } else {
       logWarn('Config contains an empty bidders array, unable to determine which bids to enrich');
@@ -101,15 +96,19 @@ export function addContextToRequests (reqBidsConfig) {
   }
 }
 
+/**
+ * Loads Qortex Ai header tag using data passed from module config object
+ * @param {Object} config module config obtained during init
+ */
 export function loadScriptTag(config) {
   const code = 'qortex';
   const groupId = config.params.groupId;
   const src = 'https://tags.qortex.ai/bootstrapper'
   const attr = {'data-group-id': groupId}
   const tc = config.params.tagConfig
-  
+
   Object.keys(tc).forEach(p => {
-    attr[`data-${p.replace(/([A-Z])/g,(m)=>`-${m.toLowerCase()}`)}`]=tc[p]
+    attr[`data-${p.replace(/([A-Z])/g, (m) => `-${m.toLowerCase()}`)}`] = tc[p]
   })
 
   addEventListener('qortex-rtd', (e) => {
@@ -122,34 +121,39 @@ export function loadScriptTag(config) {
     switch (e?.detail?.type) {
       case 'qx-impression':
         const {uid} = e.detail;
-        if (!uid || impressionIds.has(e.detail.uid)) {
-          logWarn(`recieved invalid billable event due to ${!uid ? 'missing': 'duplicate'} uid: qx-impression`)
+        if (!uid || impressionIds.has(uid)) {
+          logWarn(`recieved invalid billable event due to ${!uid ? 'missing' : 'duplicate'} uid: qx-impression`)
           return;
         } else {
-          logMessage("recieved billable event: qx-impression")
+          logMessage('recieved billable event: qx-impression')
           impressionIds.add(uid)
           billableEvent.transactionId = e.detail.uid;
+          events.emit(CONSTANTS.EVENTS.BILLABLE_EVENT, billableEvent);
           break;
         }
       default:
-        logWarn(`recieved invalid billable event: ${e.detail.type}`)
-        return;
+        logWarn(`recieved invalid billable event: ${e.detail?.type}`)
     }
-    events.emit(CONSTANTS.EVENTS.BILLABLE_EVENT, billableEvent);
   })
 
   loadExternalScript(src, code, undefined, undefined, attr);
 }
 
-export function setContextData(value) {
-  currentSiteContext = value
-}
-
+/**
+ * Helper function to set initial values when they are obtained by init
+ * @param {Object} config module config obtained during init
+ */
 export function initializeModuleData(config) {
   const DEFAULT_API_URL = 'https://demand.qortex.ai';
-  const {apiUrl, groupId, bidders} = config;
+  const {apiUrl, groupId, bidders} = config.params;
   requestUrl = `${apiUrl || DEFAULT_API_URL}/api/v1/analyze/${groupId}/prebid`;
   bidderArray = bidders;
+  impressionIds = new Set();
+  currentSiteContext = null;
+}
+
+export function setContextData(value) {
+  currentSiteContext = value
 }
 
 export const qortexSubmodule = {
