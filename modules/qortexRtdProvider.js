@@ -97,7 +97,7 @@ export function addContextToRequests (reqBidsConfig) {
 }
 
 /**
- * Loads Qortex Ai header tag using data passed from module config object
+ * Loads Qortex header tag using data passed from module config object
  * @param {Object} config module config obtained during init
  */
 export function loadScriptTag(config) {
