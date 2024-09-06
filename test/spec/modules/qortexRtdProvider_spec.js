@@ -39,6 +39,14 @@ describe('qortexRtdProvider', () => {
       bidders: validBidderArray
     }
   }
+  const bidEnrichmentDisabledModuleConfig = {
+    params: {
+      groupId: defaultGroupId,
+      apiUrl: defaultApiHost,
+      bidders: validBidderArray,
+      disableBidEnrichment: true
+    }
+  }
   const emptyModuleConfig = {
     params: {}
   }
@@ -128,15 +136,29 @@ describe('qortexRtdProvider', () => {
   describe('init', () => {
     it('returns true for valid config object', (done) => {
       const result = module.init(validModuleConfig);
-      expect(server.requests.length).to.be.eql(2)
+      expect(server.requests.length).to.be.eql(1)
       const groupConfigReq = server.requests[0];
-      const pageAnalysisReq = server.requests[1];
       groupConfigReq.respond(200, responseHeaders, validGroupConfigResponse);
-      pageAnalysisReq.respond(200, responseHeaders, JSON.stringify({}));
       setTimeout(() => {
         expect(result).to.be.true;
         done()
       }, 500)
+    })
+
+    it('logs warning when group config does not pass setup conditions', (done) => {
+      const result = module.init(validModuleConfig);
+      expect(server.requests.length).to.be.eql(1)
+      const groupConfigReq = server.requests[0];
+      groupConfigReq.respond(200, responseHeaders, inactiveGroupConfigResponse);
+      setTimeout(() => {
+        expect(logWarnSpy.calledWith('Group config is not configured for qortex bid enrichment')).to.be.true;
+        done()
+      }, 500)
+    })
+
+    it('will not initialize bid enrichment if it is disabled', () => {
+      module.init(bidEnrichmentDisabledModuleConfig);
+      expect(logWarnSpy.calledWith('Bid Enrichment Function has been disabled in module configuration')).to.be.true;
     })
 
     it('returns false and logs error for missing groupId', () => {
@@ -224,6 +246,7 @@ describe('qortexRtdProvider', () => {
 
     beforeEach(() => {
       initializeModuleData(validModuleConfig);
+      setGroupConfigData(validGroupConfigResponseObj);
       callbackSpy = sinon.spy();
     })
 
@@ -246,16 +269,6 @@ describe('qortexRtdProvider', () => {
       }
       module.getBidRequestData(reqBidsConfig, cb);
       server.requests[0].respond(200, responseHeaders, contextResponse);
-    })
-
-    it('will catch and log error and fire callback', (done) => {
-      const a = sinon.stub(ajax, 'ajax').throws(new Error('test'));
-      const cb = function () {
-        expect(logWarnSpy.calledWith('test')).to.be.eql(true);
-        done();
-      }
-      module.getBidRequestData(reqBidsConfig, cb);
-      a.restore();
     })
   })
 

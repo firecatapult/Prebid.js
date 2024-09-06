@@ -20,32 +20,30 @@ function init (config) {
     return false;
   } else {
     initializeModuleData(config);
-    getGroupConfig()
-      .then(groupConfig => {
-        logMessage(['Recieved response for qortex group config', groupConfig])
-        if (groupConfig?.active === true && groupConfig?.prebidBidEnrichment === true) {
-          setGroupConfigData(groupConfig);
-        } else {
-          logWarn('Group config is not configured for qortex RTD module, module functions will be paused')
-          setGroupConfigData(groupConfig);
-        }
-      })
-      .catch((e) => {
-        logWarn(e);
-      });
-
-    initiatePageAnalysis()
-      .then(successMessage => {
-        logMessage(successMessage)
-      })
-      .catch((e) => {
-        logWarn(e?.message);
-      });
+    if (!config?.params?.disableBidEnrichment) {
+      logMessage('Requesting Qortex group configuration')
+      getGroupConfig()
+        .then(groupConfig => {
+          logMessage(['Recieved response for qortex group config', groupConfig])
+          if (groupConfig?.active === true && groupConfig?.prebidBidEnrichment === true) {
+            setGroupConfigData(groupConfig);
+            initializeBidEnrichment();
+          } else {
+            logWarn('Group config is not configured for qortex bid enrichment')
+            setGroupConfigData(groupConfig);
+          }
+        })
+        .catch((e) => {
+          logWarn(e);
+        });
+    } else {
+      logWarn('Bid Enrichment Function has been disabled in module configuration')
+    }
+    if (config?.params?.tagConfig) {
+      loadScriptTag(config)
+    }
+    return true;
   }
-  if (config?.params?.tagConfig) {
-    loadScriptTag(config)
-  }
-  return true;
 }
 
 /**
@@ -54,15 +52,15 @@ function init (config) {
  * @param {Function} callback Called on completion
  */
 function getBidRequestData (reqBidsConfig, callback) {
-  if (reqBidsConfig?.adUnits?.length > 0 && qortexSessionInfo.groupConfig?.prebidBidEnrichment === true) {
+  if (reqBidsConfig?.adUnits?.length > 0 && shouldAllowBidEnrichment()) {
     getContext()
       .then(contextData => {
         setContextData(contextData)
         addContextToRequests(reqBidsConfig)
         callback();
       })
-      .catch((e) => {
-        logWarn(e?.message);
+      .catch(e => {
+        logWarn('Request for contextual data resulted in error', e?.message);
         callback();
       });
   } else {
@@ -76,7 +74,7 @@ function getBidRequestData (reqBidsConfig, callback) {
  * @param {Object} data Auction end object
  */
 function onAuctionEndEvent (data, config, t) {
-  if (qortexSessionInfo?.groupConfig?.prebidBidEnrichment === true) {
+  if (shouldAllowBidEnrichment()) {
     sendAnalyticsEvent('AUCTION', 'AUCTION_END', attachContextAnalytics(data))
       .then(result => {
         logMessage('Qortex anyalitics event sent')
@@ -96,11 +94,19 @@ export function getContext () {
     return new Promise((resolve, reject) => {
       const callbacks = {
         success(text, data) {
-          const result = data.status === 200 ? JSON.parse(data.response)?.content : null;
+          const responseStatus = data.status;
+          let result;
+          if (responseStatus === 200) {
+            qortexSessionInfo.pageAnalysisData.contextRetrieved = true
+            result = JSON.parse(data.response)?.content;
+          } else if (responseStatus === 202) {
+            qortexSessionInfo.pageAnalysisData.analysisInProgress = true;
+            result = null;
+          }
           resolve(result);
         },
         error(error) {
-          reject(new Error(error));
+          reject(error);
         }
       }
       ajax(qortexSessionInfo.contextUrl, callbacks, JSON.stringify(pageUrlObject), {contentType: 'application/json'})
@@ -116,7 +122,6 @@ export function getContext () {
  * @returns {Promise} Qortex group configuration
  */
 export function getGroupConfig () {
-  logMessage('Requesting group config');
   return new Promise((resolve, reject) => {
     const callbacks = {
       success(text, data) {
@@ -140,12 +145,18 @@ export function initiatePageAnalysis () {
   logMessage('Sending page data for context analysis');
   return new Promise((resolve, reject) => {
     const callbacks = {
-      success() {
-        qortexSessionInfo.pageAnalysisdata.requestSuccessful = true;
-        resolve('Successfully initiated Qortex page analysis');
+      success(text, data) {
+        const responseStatus = data.status;
+        let resultMessage;
+        if (responseStatus === 201) {
+          qortexSessionInfo.pageAnalysisData.indexRequested = true;
+          resultMessage = 'Successfully initiated Qortex page analysis';
+        } else {
+          resultMessage = 'No index record created at this time'
+        }
+        resolve(resultMessage);
       },
       error(error) {
-        qortexSessionInfo.pageAnalysisdata.requestSuccessful = false;
         reject(new Error(error));
       }
     }
@@ -276,6 +287,31 @@ export function loadScriptTag(config) {
   loadExternalScript(src, code, undefined, undefined, attr);
 }
 
+export function initializeBidEnrichment() {
+  if (shouldAllowBidEnrichment()) {
+    getContext()
+      .then(contextData => {
+        if (qortexSessionInfo.pageAnalysisData.contextRetrieved) {
+          logMessage('Contextual record recieved from Qortex API')
+          setContextData(contextData)
+        } else if (!qortexSessionInfo.pageAnalysisData.analysisInProgress) {
+          initiatePageAnalysis()
+            .then(message => {
+              logMessage(message)
+            })
+            .catch(e => {
+              logWarn(e);
+            })
+        } else {
+          logWarn('Contexual record is not yet complete at this time')
+        }
+      })
+      .catch((e) => {
+        logWarn(e?.message);
+      });
+  }
+}
+
 /**
  * Helper function to set initial values when they are obtained by init
  * @param {Object} config module config obtained during init
@@ -284,12 +320,14 @@ export function initializeModuleData(config) {
   const {apiUrl, groupId, bidders} = config.params;
   const qortexUrlBase = apiUrl || DEFAULT_API_URL;
   const windowUrl = window.top.location.host;
+  qortexSessionInfo.bidEnrichmentDisabled = config.disableBidEnrichment ?? false;
   qortexSessionInfo.bidderArray = bidders;
   qortexSessionInfo.impressionIds = new Set();
   qortexSessionInfo.currentSiteContext = null;
-  qortexSessionInfo.pageAnalysisdata = {
-    requestSuccessful: null,
-    analysisGenerated: false,
+  qortexSessionInfo.pageAnalysisData = {
+    analysisInProgress: false,
+    indexRequested: false,
+    contextRetrieved: false,
     contextAdded: {}
   };
   qortexSessionInfo.sessionId = generateSessionId();
@@ -304,7 +342,7 @@ export function initializeModuleData(config) {
 export function saveContextAdded(reqBids, bidders = null) {
   const id = reqBids.auctionId;
   const contextBidders = bidders ?? Array.from(new Set(reqBids.adUnits.flatMap(adunit => adunit.bids.map(bid => bid.bidder))))
-  qortexSessionInfo.pageAnalysisdata.contextAdded[id] = contextBidders;
+  qortexSessionInfo.pageAnalysisData.contextAdded[id] = contextBidders;
 }
 
 export function setContextData(value) {
@@ -338,7 +376,7 @@ function generateSessionId() {
 function attachContextAnalytics (data) {
   let qxData = {};
   let qxDataAdded = false;
-  if (qortexSessionInfo?.pageAnalysisdata?.contextAdded[data.auctionId]) {
+  if (qortexSessionInfo?.pageAnalysisData?.contextAdded[data.auctionId]) {
     qxData = qortexSessionInfo.currentSiteContext;
     qxDataAdded = true;
   }
@@ -351,6 +389,17 @@ function shouldSendAnalytics() {
   const analyticsPercentage = qortexSessionInfo.groupConfig?.prebidReportingPercentage ?? 0;
   const randomInt = Math.random().toFixed(5) * 100;
   return analyticsPercentage > randomInt;
+}
+
+function shouldAllowBidEnrichment() {
+  if (qortexSessionInfo.bidEnrichmentDisabled) {
+    logWarn('Bid enrichment disabled at prebid config')
+    return false;
+  } else if (!qortexSessionInfo.groupConfig?.prebidBidEnrichment) {
+    logWarn('Bid enrichment disabled at group config')
+    return false;
+  }
+  return true
 }
 
 export const qortexSubmodule = {
