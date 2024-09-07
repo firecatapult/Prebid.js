@@ -286,8 +286,6 @@ describe('qortexRtdProvider', () => {
       module.getBidRequestData(reqBidsConfig, callbackSpy);
       server.requests[0].respond(404, responseHeaders, JSON.stringify({}));
       setTimeout(() => {
-        // eslint-disable-next-line no-console
-        console.log(logWarnSpy.getCall(0));
         expect(logWarnSpy.calledWith('Returned error status code: 404')).to.be.eql(true);
         expect(callbackSpy.calledOnce).to.be.true;
         done();
