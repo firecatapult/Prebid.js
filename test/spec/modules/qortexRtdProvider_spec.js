@@ -14,7 +14,8 @@ import {
   loadScriptTag,
   initializeModuleData,
   setGroupConfigData,
-  saveContextAdded
+  saveContextAdded,
+  initializeBidEnrichment
 } from '../../../modules/qortexRtdProvider';
 import {server} from '../../mocks/xhr.js';
 import { cloneDeep } from 'lodash';
@@ -156,6 +157,15 @@ describe('qortexRtdProvider', () => {
       }, 500)
     })
 
+    it('logs warning when group config request errors', (done) => {
+      const result = module.init(validModuleConfig);
+      server.requests[0].respond(404, responseHeaders, inactiveGroupConfigResponse);
+      setTimeout(() => {
+        expect(logWarnSpy.calledWith('No Group Config found')).to.be.true;
+        done()
+      }, 500)
+    })
+
     it('will not initialize bid enrichment if it is disabled', () => {
       module.init(bidEnrichmentDisabledModuleConfig);
       expect(logWarnSpy.calledWith('Bid Enrichment Function has been disabled in module configuration')).to.be.true;
@@ -248,6 +258,7 @@ describe('qortexRtdProvider', () => {
       initializeModuleData(validModuleConfig);
       setGroupConfigData(validGroupConfigResponseObj);
       callbackSpy = sinon.spy();
+      server.reset();
     })
 
     afterEach(() => {
@@ -269,6 +280,39 @@ describe('qortexRtdProvider', () => {
       }
       module.getBidRequestData(reqBidsConfig, cb);
       server.requests[0].respond(200, responseHeaders, contextResponse);
+    })
+
+    it('will catch and log error and fire callback', (done) => {
+      module.getBidRequestData(reqBidsConfig, callbackSpy);
+      server.requests[0].respond(404, responseHeaders, JSON.stringify({}));
+      setTimeout(() => {
+        // eslint-disable-next-line no-console
+        console.log(logWarnSpy.getCall(0));
+        expect(logWarnSpy.calledWith('Returned error status code: 404')).to.be.eql(true);
+        expect(callbackSpy.calledOnce).to.be.true;
+        done();
+      }, 250)
+    })
+
+    it('will not request context if group config toggle is false', (done) => {
+      setGroupConfigData(inactiveGroupConfigResponseObj);
+      const cb = function () {
+        expect(server.requests.length).to.be.eql(0);
+        expect(logWarnSpy.called).to.be.true;
+        expect(logWarnSpy.calledWith('Bid enrichment disabled at group config')).to.be.true;
+        done();
+      }
+      module.getBidRequestData(reqBidsConfig, cb);
+    })
+    it('will not request context if prebid disable toggle is true', (done) => {
+      initializeModuleData(bidEnrichmentDisabledModuleConfig);
+      const cb = function () {
+        expect(server.requests.length).to.be.eql(0);
+        expect(logWarnSpy.called).to.be.true;
+        expect(logWarnSpy.calledWith('Bid enrichment disabled at prebid config')).to.be.true;
+        done();
+      }
+      module.getBidRequestData(reqBidsConfig, cb);
     })
   })
 
@@ -338,9 +382,8 @@ describe('qortexRtdProvider', () => {
     })
 
     it('returns null when necessary', (done) => {
-      const nullContentResponse = { content: null }
       const ctx = getContext()
-      server.requests[0].respond(200, responseHeaders, JSON.stringify(nullContentResponse))
+      server.requests[0].respond(202, responseHeaders, JSON.stringify({}))
       ctx.then(response => {
         expect(response).to.be.null;
         expect(server.requests.length).to.be.eql(1);
@@ -459,6 +502,9 @@ describe('qortexRtdProvider', () => {
 
     afterEach(() => {
       initializeModuleData(emptyModuleConfig);
+      setGroupConfigData(null);
+      setContextData(null);
+      server.reset();
     })
 
     it('returns a promise', () => {
@@ -478,6 +524,66 @@ describe('qortexRtdProvider', () => {
         expect(response.prebidReportingPercentage).to.be.eql(validGroupConfigResponseObj.prebidReportingPercentage);
         done();
       })
+    })
+  })
+
+  describe('initializeBidEnrichment', () => {
+    beforeEach(() => {
+      initializeModuleData(validModuleConfig);
+      setGroupConfigData(validGroupConfigResponseObj);
+      setContextData(null);
+      server.reset();
+    })
+
+    afterEach(() => {
+      initializeModuleData(emptyModuleConfig);
+      setGroupConfigData(null);
+      setContextData(null);
+      server.reset();
+    })
+
+    it('sets context data if applicable', (done) => {
+      initializeBidEnrichment();
+      server.requests[0].respond(200, responseHeaders, contextResponse);
+      setTimeout(() => {
+        expect(logMessageSpy.calledWith('Contextual record recieved from Qortex API')).to.be.true;
+        done()
+      }, 250)
+    })
+
+    it('logs page analysis response information if initiated', (done) => {
+      initializeBidEnrichment();
+      server.requests[0].respond(404, responseHeaders, JSON.stringify({}));
+      setTimeout(() => {
+        server.requests[1].respond(201, responseHeaders, JSON.stringify({}));
+        setTimeout(() => {
+          expect(logMessageSpy.calledWith('Sending page data for context analysis')).to.be.true;
+          expect(logMessageSpy.calledWith('Successfully initiated Qortex page analysis')).to.be.true;
+          done();
+        }, 400)
+      }, 250)
+    })
+
+    it('logs page analysis response information if applicable', (done) => {
+      initializeBidEnrichment();
+      server.requests[0].respond(404, responseHeaders, JSON.stringify({}));
+      setTimeout(() => {
+        server.requests[1].respond(201, responseHeaders, JSON.stringify({}));
+        setTimeout(() => {
+          expect(logMessageSpy.calledWith('Sending page data for context analysis')).to.be.true;
+          expect(logMessageSpy.calledWith('Successfully initiated Qortex page analysis')).to.be.true;
+          done();
+        }, 400)
+      }, 250)
+    })
+
+    it('logs page analysis response if no record is made', (done) => {
+      initializeBidEnrichment();
+      server.requests[0].respond(202, responseHeaders, JSON.stringify({}));
+      setTimeout(() => {
+        expect(logWarnSpy.calledWith('Contexual record is not yet complete at this time')).to.be.true;
+        done();
+      }, 250)
     })
   })
 })

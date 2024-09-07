@@ -34,7 +34,11 @@ function init (config) {
           }
         })
         .catch((e) => {
-          logWarn(e);
+          const errorStatus = e.message;
+          logWarn('Returned error status code: ' + errorStatus);
+          if (errorStatus == 404) {
+            logWarn('No Group Config found');
+          }
         });
     } else {
       logWarn('Bid Enrichment Function has been disabled in module configuration')
@@ -60,7 +64,7 @@ function getBidRequestData (reqBidsConfig, callback) {
         callback();
       })
       .catch(e => {
-        logWarn('Request for contextual data resulted in error', e?.message);
+        logWarn('Returned error status code: ' + e.message);
         callback();
       });
   } else {
@@ -105,8 +109,9 @@ export function getContext () {
           }
           resolve(result);
         },
-        error(error) {
-          reject(error);
+        error(e, x) {
+          const responseStatus = x.status;
+          reject(new Error(responseStatus));
         }
       }
       ajax(qortexSessionInfo.contextUrl, callbacks, JSON.stringify(pageUrlObject), {contentType: 'application/json'})
@@ -128,8 +133,8 @@ export function getGroupConfig () {
         const result = data.status === 200 ? JSON.parse(data.response) : null;
         resolve(result);
       },
-      error(error) {
-        reject(new Error(error));
+      error(e, x) {
+        reject(new Error(x.status));
       }
     }
     ajax(qortexSessionInfo.groupConfigUrl, callbacks)
@@ -156,8 +161,8 @@ export function initiatePageAnalysis () {
         }
         resolve(resultMessage);
       },
-      error(error) {
-        reject(new Error(error));
+      error(e, x) {
+        reject(new Error(x.status));
       }
     }
     ajax(qortexSessionInfo.pageAnalyisUrl, callbacks, JSON.stringify(qortexSessionInfo.indexData), {contentType: 'application/json'})
@@ -294,7 +299,14 @@ export function initializeBidEnrichment() {
         if (qortexSessionInfo.pageAnalysisData.contextRetrieved) {
           logMessage('Contextual record recieved from Qortex API')
           setContextData(contextData)
-        } else if (!qortexSessionInfo.pageAnalysisData.analysisInProgress) {
+        } else {
+          logWarn('Contexual record is not yet complete at this time')
+        }
+      })
+      .catch(e => {
+        const errorStatus = e.message;
+        logWarn('Returned error status code: ' + errorStatus);
+        if (errorStatus == 404) {
           initiatePageAnalysis()
             .then(message => {
               logMessage(message)
@@ -302,12 +314,7 @@ export function initializeBidEnrichment() {
             .catch(e => {
               logWarn(e);
             })
-        } else {
-          logWarn('Contexual record is not yet complete at this time')
         }
-      })
-      .catch((e) => {
-        logWarn(e?.message);
       });
   }
 }
@@ -317,10 +324,10 @@ export function initializeBidEnrichment() {
  * @param {Object} config module config obtained during init
  */
 export function initializeModuleData(config) {
-  const {apiUrl, groupId, bidders} = config.params;
+  const {apiUrl, groupId, bidders, disableBidEnrichment} = config.params;
   const qortexUrlBase = apiUrl || DEFAULT_API_URL;
   const windowUrl = window.top.location.host;
-  qortexSessionInfo.bidEnrichmentDisabled = config.disableBidEnrichment ?? false;
+  qortexSessionInfo.bidEnrichmentDisabled = disableBidEnrichment !== null ? disableBidEnrichment : false;
   qortexSessionInfo.bidderArray = bidders;
   qortexSessionInfo.impressionIds = new Set();
   qortexSessionInfo.currentSiteContext = null;
