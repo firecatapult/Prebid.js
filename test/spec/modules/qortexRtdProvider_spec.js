@@ -48,6 +48,13 @@ describe('qortexRtdProvider', () => {
       disableBidEnrichment: true
     }
   }
+  const invalidApiUrlModuleConfig = {
+    params: {
+      groupId: defaultGroupId,
+      apiUrl: 'test123',
+      bidders: validBidderArray
+    }
+  }
   const emptyModuleConfig = {
     params: {}
   }
@@ -282,6 +289,16 @@ describe('qortexRtdProvider', () => {
       server.requests[0].respond(200, responseHeaders, contextResponse);
     })
 
+    it('will log message call callback if context data has already been collected', (done) => {
+      setContextData(contextResponseObj);
+      module.getBidRequestData(reqBidsConfig, callbackSpy);
+      setTimeout(() => {
+        expect(server.requests.length).to.be.eql(0);
+        expect(logMessageSpy.calledWith('Adding Content object from existing context data')).to.be.true;
+        done();
+      }, 250)
+    })
+
     it('will catch and log error and fire callback', (done) => {
       module.getBidRequestData(reqBidsConfig, callbackSpy);
       server.requests[0].respond(404, responseHeaders, JSON.stringify({}));
@@ -347,6 +364,27 @@ describe('qortexRtdProvider', () => {
       expect(server.requests.length).to.be.eql(0);
       setTimeout(() => {
         expect(logWarnSpy.calledWith('Current request did not meet analytics percentage threshold, cancelling sending event')).to.be.true
+        done();
+      }, 200)
+    })
+
+    it('Logs warning for invalid apiurl', (done) => {
+      initializeModuleData(invalidApiUrlModuleConfig);
+      const testData = {data: 'data'};
+      module.onAuctionEndEvent(testData);
+      expect(server.requests.length).to.be.eql(0);
+      setTimeout(() => {
+        expect(logWarnSpy.calledWith('Analytics host not initialized')).to.be.true
+        done();
+      }, 200)
+    })
+
+    it('Logs warning for network error', (done) => {
+      const testData = {auctionId: reqBidsConfig.auctionId, data: 'data'};
+      module.onAuctionEndEvent(testData);
+      server.requests[0].respond(500, responseHeaders, JSON.stringify({}));
+      setTimeout(() => {
+        expect(logWarnSpy.calledWith('Returned error status code: 500')).to.be.eql(true);
         done();
       }, 200)
     })
@@ -562,14 +600,14 @@ describe('qortexRtdProvider', () => {
       }, 250)
     })
 
-    it('logs page analysis response information if applicable', (done) => {
+    it('logs page analysis response information if not initiated', (done) => {
       initializeBidEnrichment();
       server.requests[0].respond(404, responseHeaders, JSON.stringify({}));
       setTimeout(() => {
-        server.requests[1].respond(201, responseHeaders, JSON.stringify({}));
+        server.requests[1].respond(200, responseHeaders, JSON.stringify({}));
         setTimeout(() => {
           expect(logMessageSpy.calledWith('Sending page data for context analysis')).to.be.true;
-          expect(logMessageSpy.calledWith('Successfully initiated Qortex page analysis')).to.be.true;
+          expect(logMessageSpy.calledWith('No index record created at this time')).to.be.true;
           done();
         }, 400)
       }, 250)
@@ -581,6 +619,18 @@ describe('qortexRtdProvider', () => {
       setTimeout(() => {
         expect(logWarnSpy.calledWith('Contexual record is not yet complete at this time')).to.be.true;
         done();
+      }, 250)
+    })
+
+    it('logs error on page analysis if applicable', (done) => {
+      initializeBidEnrichment();
+      server.requests[0].respond(404, responseHeaders, JSON.stringify({}));
+      setTimeout(() => {
+        server.requests[1].respond(500, responseHeaders, JSON.stringify({}));
+        setTimeout(() => {
+          expect(logWarnSpy.calledWith('Returned error status code: 500')).to.be.eql(true);
+          done();
+        }, 400)
       }, 250)
     })
   })

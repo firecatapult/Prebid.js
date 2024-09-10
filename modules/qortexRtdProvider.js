@@ -83,7 +83,7 @@ function onAuctionEndEvent (data, config, t) {
       .then(result => {
         logMessage('Qortex anyalitics event sent')
       })
-      .catch(e => logWarn(e?.message))
+      .catch(e => logWarn(e.message))
   }
 }
 
@@ -92,7 +92,7 @@ function onAuctionEndEvent (data, config, t) {
  * @returns {Promise} ortb Content object
  */
 export function getContext () {
-  if (qortexSessionInfo.currentSiteContext === null) {
+  if (!qortexSessionInfo.currentSiteContext) {
     const pageUrlObject = { pageUrl: qortexSessionInfo.indexData?.pageUrl ?? '' }
     logMessage('Requesting new context data');
     return new Promise((resolve, reject) => {
@@ -183,8 +183,8 @@ export function sendAnalyticsEvent(eventType, subType, data) {
           success() {
             resolve();
           },
-          error(error) {
-            reject(new Error(error));
+          error(e, x) {
+            reject(new Error('Returned error status code: ' + x.status));
           }
         }
         ajax(qortexSessionInfo.analyticsUrl, callbacks, JSON.stringify(analtyicsEventObject), {contentType: 'application/json'})
@@ -222,6 +222,8 @@ export function generateAnalyticsHostUrl(qortexUrlBase) {
     return 'https://events.qortex.ai/api/v1/player-event';
   } else if (qortexUrlBase.includes('stg-demand')) {
     return 'https://stg-events.qortex.ai/api/v1/player-event';
+  } else if (!qortexUrlBase.includes('https://')) {
+    return null;
   } else {
     return 'https://dev-events.qortex.ai/api/v1/player-event';
   }
@@ -312,7 +314,7 @@ export function initializeBidEnrichment() {
               logMessage(message)
             })
             .catch(e => {
-              logWarn(e);
+              logWarn('Returned error status code: ' + e.message)
             })
         }
       });
