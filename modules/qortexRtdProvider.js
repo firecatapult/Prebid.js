@@ -175,7 +175,7 @@ export function initiatePageAnalysis () {
  */
 export function sendAnalyticsEvent(eventType, subType, data) {
   if (qortexSessionInfo.analyticsUrl !== null) {
-    if (shouldSendAnalytics()) {
+    if (shouldSendAnalytics(data)) {
       const analtyicsEventObject = generateAnalyticsEventObject(eventType, subType, data)
       logMessage('Sending qortex analytics event');
       return new Promise((resolve, reject) => {
@@ -238,7 +238,7 @@ export function addContextToRequests (reqBidsConfig) {
   if (qortexSessionInfo.currentSiteContext === null) {
     logWarn('No context data received at this time');
   } else {
-    if(checkPercentageOutcome(qortexSessionInfo.groupConfig?.prebidBidEnrichmentPercentage)) {
+    if (checkPercentageOutcome(qortexSessionInfo.groupConfig?.prebidBidEnrichmentPercentage)) {
       const fragment = { site: {content: qortexSessionInfo.currentSiteContext} }
       if (qortexSessionInfo.bidderArray?.length > 0) {
         qortexSessionInfo.bidderArray.forEach(bidder => mergeDeep(reqBidsConfig.ortb2Fragments.bidder, {[bidder]: fragment}))
@@ -252,7 +252,6 @@ export function addContextToRequests (reqBidsConfig) {
     } else {
       saveContextAdded(reqBidsConfig, true);
     }
-
   }
 }
 
@@ -370,6 +369,10 @@ export function setGroupConfigData(value) {
   qortexSessionInfo.groupConfig = value
 }
 
+export function getContextAddedEntry (id) {
+  return qortexSessionInfo?.pageAnalysisData?.contextAdded[id]
+}
+
 /**
  * Creates page index data for Qortex analysis
  * @returns {Object} page index object
@@ -391,8 +394,8 @@ function generateSessionId() {
 }
 
 function attachContextAnalytics (data) {
-  const contextAddedEntry = qortexSessionInfo?.pageAnalysisData?.contextAdded[data.auctionId];
-  if(contextAddedEntry) {
+  const contextAddedEntry = getContextAddedEntry(data.auctionId);
+  if (contextAddedEntry) {
     data.qortexContext = qortexSessionInfo.currentSiteContext ?? {};
     data.qortexContextBidders = contextAddedEntry?.bidders;
     data.qortexContextSkipped = contextAddedEntry?.contextSkipped;
@@ -410,7 +413,7 @@ function checkPercentageOutcome(percentageValue) {
 }
 
 function shouldSendAnalytics(data) {
-  if(data) {
+  if (data) {
     return checkPercentageOutcome(qortexSessionInfo.groupConfig?.prebidReportingPercentage)
   } else {
     return false;
