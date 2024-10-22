@@ -103,7 +103,7 @@ export function getContext () {
           if (responseStatus === 200) {
             qortexSessionInfo.pageAnalysisData.contextRetrieved = true
             result = JSON.parse(data.response)?.content;
-          } 
+          }
           resolve(result);
         },
         error(e, x) {
@@ -274,7 +274,8 @@ export function initializeBidEnrichment() {
       })
       .catch((e) => {
         const errorStatus = e.message;
-        logWarn('Returned error status code: ' + errorStatus)})
+        logWarn('Returned error status code: ' + errorStatus)
+      })
   }
 }
 /**
